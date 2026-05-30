@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# TI C2000 SoC family top-level defconfig
+
+if SOC_SERIES_TI_C2000_F283XX
+
+config SOC_SERIES
+	default "ti_c2000_f283xx"
+
+endif # SOC_SERIES_TI_C2000_F283XX

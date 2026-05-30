@@ -1,0 +1,120 @@
+/dts-v1/;
+
+/*
+ * TI LAUNCHXL-F28379D Device Tree
+ *
+ * Key peripherals on the LaunchPad:
+ *   - 2x C28x cores @ 200 MHz (CPU1 primary for Zephyr)
+ *   - 512KB Flash (CPU1 Bank0: 0x080000)
+ *   - 204KB RAM total (M0/M1 + LS0-5 + GS0-7)
+ *   - SCIA → USB-UART via XDS110 debug probe (GPIO28=TX, GPIO29=RX)
+ *   - 2x user LEDs: GPIO31 (LED4/Blue), GPIO34 (LED5/Red)
+ *   - 2x user buttons: GPIO22, GPIO23
+ *
+ * Reference: LAUNCHXL-F28379D User's Guide (SPRUI62)
+ *            TMS320F28379D Technical Reference Manual (SPRUI33)
+ *
+ * NOTE: C28x word addresses are multiplied by 2 for byte addresses used
+ * in reg properties here (Zephyr DTS convention = byte addresses).
+ */
+
+/ {
+	model = "TI LAUNCHXL-F28379D Evaluation Kit";
+	compatible = "ti,launchxl-f28379d";
+
+	chosen {
+		zephyr,console    = &scia;
+		zephyr,shell-uart = &scia;
+		zephyr,sram       = &sram0;
+		zephyr,flash      = &flash0;
+	};
+
+	/*
+	 * RAM: M0(1KB) + M1(1KB) + LS0-LS5(12KB) + GS0-GS7(8KB) = 22KB
+	 * Starting at M0 base (word addr 0x000000 → byte 0x000000).
+	 * NOTE: Zephyr stack and heap will be allocated from this region.
+	 */
+	sram0: memory@0 {
+		compatible = "mmio-sram";
+		reg = <0x00000000 DT_SIZE_K(22)>;
+	};
+
+	/*
+	 * Flash Bank 0 Sector A start (CPU1).
+	 * Word address 0x080000 → byte address 0x100000.
+	 * Size: 256KB (128K words).
+	 *
+	 * TODO: Verify the byte-address mapping with your toolchain config.
+	 *       TI CGT C28x may handle addressing differently than GCC.
+	 */
+	flash0: flash@100000 {
+		compatible = "soc-nv-flash";
+		reg = <0x00100000 DT_SIZE_K(256)>;
+	};
+
+	/* User LEDs (active-high) */
+	leds {
+		compatible = "gpio-leds";
+
+		led0: led_0 {
+			/* LED4 Blue — GPIO31 */
+			gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;
+			label = "LED4 Blue";
+		};
+
+		led1: led_1 {
+			/* LED5 Red — GPIO34 */
+			gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
+			label = "LED5 Red";
+		};
+	};
+
+	/* User push buttons */
+	buttons {
+		compatible = "gpio-keys";
+
+		btn0: button_0 {
+			/* S1 — GPIO22 */
+			gpios = <&gpio0 22 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "S1";
+		};
+
+		btn1: button_1 {
+			/* S2 — GPIO23 */
+			gpios = <&gpio0 23 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "S2";
+		};
+	};
+
+	aliases {
+		led0     = &led0;
+		led1     = &led1;
+		sw0      = &btn0;
+		sw1      = &btn1;
+	};
+};
+
+/*
+ * SCIA — maps to USB-UART via XDS110 on LaunchPad.
+ * GPIO28 = SCIRXDA, GPIO29 = SCITXDA
+ * Peripheral clock: LSPCLK = SYSCLK/4 = 50 MHz (default divider)
+ *
+ * TODO: Add proper clock-frequency binding once clock driver exists.
+ *       The baud rate register values depend on LSPCLK.
+ */
+&scia {
+	status = "okay";
+	current-speed = <115200>;
+};
+
+/*
+ * GPIO banks (GPIO0-63 = bank 0, GPIO64-127 = bank 1, etc.)
+ * Byte addresses for GPIO data/control regs — TODO: verify
+ */
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};

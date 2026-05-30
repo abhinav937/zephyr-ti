@@ -32,3 +32,6 @@ archs:
   - name: rx
     path: rx
     full_name: Renesas RX
+  - name: c28x
+    path: c28x
+    full_name: TI C28x DSP

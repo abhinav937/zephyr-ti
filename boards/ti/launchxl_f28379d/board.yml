@@ -1,0 +1,6 @@
+board:
+  name: launchxl_f28379d
+  full_name: "TI LAUNCHXL-F28379D Evaluation Kit"
+  vendor: ti
+  socs:
+    - name: ti_f28379d

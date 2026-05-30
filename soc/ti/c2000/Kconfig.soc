@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# TI C2000 F283xx SoC series (C28x DSP core)
+
+config SOC_SERIES_TI_C2000_F283XX
+	bool
+	select C28X
+	select CPU_HAS_FPU
+	help
+	  TI C2000 F283xx series (e.g. TMS320F28379D).
+	  Dual-core C28x DSP with FPU, TMU, and PIE controller.

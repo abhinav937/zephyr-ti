@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_LAUNCHXL_F28379D
+
+config BOARD
+	default "launchxl_f28379d"
+
+# Default to SCIA for console (connected to FTDI USB-UART on LaunchPad)
+config UART_CONSOLE
+	default y
+
+config CONSOLE
+	default y
+
+# Enable SCI/UART driver when console is used
+config SERIAL
+	default y if CONSOLE
+
+endif # BOARD_LAUNCHXL_F28379D

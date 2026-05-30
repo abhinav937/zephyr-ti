@@ -1,0 +1,6 @@
+family:
+  - name: ti_c2000
+    series:
+      - name: ti_c2000_f283xx
+        socs:
+          - name: ti_f28379d

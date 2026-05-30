@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# TI C28x DSP architecture Kconfig
+
+if C28X
+
+config ARCH
+	default "c28x"
+
+config NUM_IRQS
+	int
+	default 96
+	help
+	  Total number of IRQs supported by the PIE (Peripheral Interrupt
+	  Expansion) controller on C2000 devices. The PIE supports 12 groups
+	  of 8 interrupts each (96 total) multiplexed onto 12 CPU interrupt
+	  lines (INT1-INT12).
+
+config NUM_CPU_IRQS
+	int
+	default 16
+	help
+	  Number of CPU-level interrupt lines (INT1-INT12 + DLOGINT +
+	  RTOSINT + NMI + reset = 16 total CPU vectors).
+
+config GEN_ISR_TABLES
+	default y
+
+config GEN_IRQ_VECTOR_TABLE
+	default n
+
+config STACK_ALIGN_SIZE
+	int
+	default 2
+	help
+	  C28x stack pointer is word-addressed (16-bit word aligned).
+
+config MAIN_STACK_SIZE
+	default 2048
+
+config ISR_STACK_SIZE
+	default 2048
+
+config IDLE_STACK_SIZE
+	default 512
+
+config SRAM_OFFSET
+	hex
+	default 0x0
+
+endif # C28X

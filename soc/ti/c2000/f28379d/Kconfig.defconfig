@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_TI_F28379D
+
+config SOC
+	default "ti_f28379d"
+
+config NUM_IRQS
+	default 96   /* 12 PIE groups x 8 lines */
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	default 200000000   /* 200 MHz SYSCLK */
+
+config CORTEX_M_SYSTICK
+	default n   /* C28x uses CPU Timer 0, not ARM SysTick */
+
+config SYS_CLOCK_EXISTS
+	default y
+
+endif # SOC_TI_F28379D

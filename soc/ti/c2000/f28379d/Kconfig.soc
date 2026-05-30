@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_TI_F28379D
+	bool
+	select SOC_SERIES_TI_C2000_F283XX
+	help
+	  TI TMS320F28379D dual-core C28x DSP.
+	  CPU1 primary core: 200 MHz C28x + FPU + TMU.
+	  512KB Flash, 204KB RAM, 12-group PIE interrupt controller.

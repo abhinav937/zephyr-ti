@@ -186,6 +186,15 @@ config RX
 	help
 	  Renesas RX architecture
 
+config C28X
+	bool
+	select ARCH_IS_SET
+	select ATOMIC_OPERATIONS_C
+	select USE_SWITCH
+	select USE_SWITCH_SUPPORTED
+	help
+	  TI C28x DSP architecture (TMS320C28x, used in C2000 microcontrollers)
+
 config ARCH_IS_SET
 	bool
 	help

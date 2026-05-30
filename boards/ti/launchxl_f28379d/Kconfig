@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_LAUNCHXL_F28379D
+	select SOC_TI_F28379D
+	select CPU_HAS_FPU
