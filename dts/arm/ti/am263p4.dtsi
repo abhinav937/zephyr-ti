@@ -14,6 +14,7 @@
  */
 
 #include <mem.h>
+#include <freq.h>
 #include <arm/armv7-r.dtsi>
 #include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
 #include <zephyr/dt-bindings/interrupt-controller/ti-vim.h>

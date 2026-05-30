@@ -1,0 +1,11 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config PINCTRL_TI_AM263X
+	bool "TI AM263x pinctrl driver"
+	default y
+	depends on PINCTRL && SOC_SERIES_AM263X
+	help
+	  Enable the minimal TI AM263x pinctrl driver. Pads are configured by
+	  writing the value from the devicetree pinmux property to the absolute
+	  PADCONFIG register address encoded in that property.
