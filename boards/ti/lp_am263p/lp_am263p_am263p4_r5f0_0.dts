@@ -33,3 +33,8 @@
 	status = "okay";
 	current-speed = <115200>;
 };
+
+/* RTI0 — Zephyr system tick source. */
+&rti0 {
+	status = "okay";
+};

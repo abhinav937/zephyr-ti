@@ -1,0 +1,11 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config TI_RTI_TIMER
+	bool "TI RTI system timer"
+	default y
+	depends on DT_HAS_TI_RTI_TIMER_ENABLED
+	select TICKLESS_CAPABLE
+	help
+	  System clock driver using the TI RTI (Real Time Interrupt) timer,
+	  used as the kernel tick source on AM263x / AM263Px R5F devices.
