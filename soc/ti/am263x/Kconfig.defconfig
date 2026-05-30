@@ -1,0 +1,36 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_SERIES_AM263X
+
+config KERNEL_ENTRY
+	default "_vector_table" if SOC_SERIES_AM263X_R5
+
+config NUM_IRQS
+	# AM263x VIM. Matches the value used by the other TI R5F (am64x) ports;
+	# refine against the AM263Px TRM (SPRUJ55) VIM interrupt map if needed.
+	default 256 if SOC_SERIES_AM263X_R5
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	# RTI counter input clock. Placeholder until the RTI sys-clock driver
+	# (task #21) pins the exact RTI source clock from the RCM config.
+	default 25000000 if SOC_SERIES_AM263X_R5
+
+if SERIAL
+
+config UART_NS16550
+	default y
+
+config UART_NS16550_TI_K3
+	default y if SOC_SERIES_AM263X_R5
+
+choice UART_NS16550_VARIANT
+	default UART_NS16550_VARIANT_NS16750
+endchoice
+
+endif # SERIAL
+
+config BUILD_OUTPUT_BIN
+	default n if SOC_SERIES_AM263X_R5
+
+endif # SOC_SERIES_AM263X

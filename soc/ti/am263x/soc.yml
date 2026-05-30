@@ -1,0 +1,8 @@
+family:
+- name: ti_am263x
+  series:
+  - name: am263x
+    socs:
+    - name: am263p4
+      cpuclusters:
+      - name: r5f0_0

@@ -1,0 +1,38 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_FAMILY_TI_AM263X
+	bool
+
+config SOC_FAMILY
+	default "ti_am263x" if SOC_FAMILY_TI_AM263X
+
+config SOC_SERIES_AM263X
+	bool
+	select SOC_FAMILY_TI_AM263X
+	help
+	  TI AM263x / AM263Px Sitara real-time MCU series (Cortex-R5F).
+
+config SOC_SERIES_AM263X_R5
+	bool
+	select SOC_SERIES_AM263X
+	help
+	  AM263x R5F core series.
+
+config SOC_AM263P4
+	bool
+	select SOC_SERIES_AM263X_R5
+	help
+	  TI AM263P4 — quad Cortex-R5F @ 400 MHz real-time MCU.
+
+config SOC_AM263P4_R5F0_0
+	bool
+	select SOC_AM263P4
+	help
+	  AM263P4 R5F SubSystem 0, Core 0 (primary boot core).
+
+config SOC_SERIES
+	default "am263x" if SOC_SERIES_AM263X
+
+config SOC
+	default "am263p4" if SOC_AM263P4
