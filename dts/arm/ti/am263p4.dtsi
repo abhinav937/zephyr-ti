@@ -1,0 +1,116 @@
+/*
+ * Copyright (c) 2026
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * TI AM263P4 SoC devicetree (Cortex-R5F view).
+ *
+ * Addresses and interrupt numbers are taken from the TI MCU+ SDK
+ * (mcupsdk-core) for am263px and the AM263Px TRM (SPRUJ55):
+ *   - peripheral bases:  cslr_soc_baseaddress.h
+ *   - R5FSS0/core0 IRQs: cslr_intr_r5fss0_core0.h
+ *   - memory layout:     board-tested SDK linker (R5FSS0 core0)
+ * See docs/am263p-memory-map.md.
+ */
+
+#include <mem.h>
+#include <arm/armv7-r.dtsi>
+#include <zephyr/dt-bindings/memory-attr/memory-attr-arm.h>
+#include <zephyr/dt-bindings/interrupt-controller/ti-vim.h>
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-r5f";
+			reg = <0>;
+			clock-frequency = <DT_FREQ_M(400)>;
+		};
+	};
+
+	/* R5FSS0 Core0 local TCM (ATCM at 0x0, BTCM at 0x80000). */
+	atcm: memory@0 {
+		device_type = "memory";
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x0 DT_SIZE_K(32)>;
+		zephyr,memory-region = "ATCM";
+		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_RAM)>;
+	};
+
+	btcm: memory@80000 {
+		device_type = "memory";
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x80000 DT_SIZE_K(32)>;
+		zephyr,memory-region = "BTCM";
+		zephyr,memory-attr = <DT_MEM_ARM(ATTR_MPU_RAM)>;
+	};
+
+	/*
+	 * Main RAM: this core's non-overlapping 256 KB slice of L2OCRAM,
+	 * matching TI's tested single-core layout (OCRAM @ 0x70040000).
+	 */
+	sram: memory@70040000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x70040000 DT_SIZE_K(256)>;
+		zephyr,memory-region = "SRAM";
+	};
+
+	soc {
+		/* VIM — Vectored Interrupt Manager (base 0x50F00000). */
+		vim: interrupt-controller@50f00000 {
+			#address-cells = <1>;
+			compatible = "ti,vim";
+			reg = <0x50f00000 0x4000>;
+			interrupt-controller;
+			/* {IRQ/FIQ, IRQ_NUM, IRQ_TYPE, IRQ_PRIO} */
+			#interrupt-cells = <4>;
+		};
+
+		/* UART0 — console (XDS110 USB-UART on the LaunchPad). */
+		uart0: uart@52300000 {
+			compatible = "ns16550";
+			reg = <0x52300000 0x100>;
+			/*
+			 * TODO(verify-on-bringup): UART module functional clock.
+			 * Sets the baud divisor; if the console prints garbage,
+			 * confirm against the AM263Px RCM/clock tree (SDK
+			 * soc_rcm.c). 96 MHz is the SysConfig default.
+			 */
+			clock-frequency = <DT_FREQ_M(96)>;
+			reg-shift = <2>;
+			interrupts = <0 38 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			interrupt-parent = <&vim>;
+			status = "disabled";
+		};
+
+		/* RTI0 — system tick source (compare interrupt 0 = VIM IRQ 84). */
+		rti0: rti@52180000 {
+			compatible = "ti,rti-timer";
+			reg = <0x52180000 0x100>;
+			interrupts = <0 84 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			interrupt-parent = <&vim>;
+			status = "disabled";
+		};
+
+		/*
+		 * GPIO bank 0 (base 0x52000000). Placeholder for task #23.
+		 * TODO(verify): confirm the AM263x GPIO register layout is
+		 * compatible with "ti,davinci-gpio"; it may need a dedicated
+		 * binding/driver. Not required for first boot (node disabled).
+		 */
+		gpio0: gpio@52000000 {
+			compatible = "ti,davinci-gpio";
+			reg = <0x52000000 0x100>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <32>;
+			status = "disabled";
+		};
+	};
+};

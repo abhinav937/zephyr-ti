@@ -1,0 +1,19 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  TI RTI (Real Time Interrupt) timer used as the Zephyr system clock on
+  AM263x / AM263Px Cortex-R5F devices. The RTI provides free-running
+  up-counters (counter 0/1) with compare registers; compare 0 is used to
+  generate the kernel tick.
+
+compatible: "ti,rti-timer"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true

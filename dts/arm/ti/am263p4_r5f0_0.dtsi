@@ -1,0 +1,9 @@
+/*
+ * Copyright (c) 2026
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * AM263P4 R5F SubSystem 0, Core 0 — the primary boot core for Zephyr.
+ */
+
+#include <ti/am263p4.dtsi>
