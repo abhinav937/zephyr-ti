@@ -1,0 +1,12 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: lp_am263p/am263p4/r5f0_0
+name: TI LP-AM263P R5F Core
+type: mcu
+arch: arm
+ram: 256
+toolchain:
+  - zephyr
+  - gnuarmemb
+vendor: ti

@@ -1,0 +1,14 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+# Execute from RAM (loaded by debugger / SBL), not XIP
+CONFIG_XIP=n
+
+# Serial / console
+CONFIG_SERIAL=y
+CONFIG_UART_INTERRUPT_DRIVEN=y
+CONFIG_CONSOLE=y
+CONFIG_UART_CONSOLE=y
+
+# Cortex-R5F memory protection
+CONFIG_ARM_MPU=y

@@ -1,0 +1,7 @@
+# TI LP-AM263P LaunchPad
+#
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_LP_AM263P
+	select SOC_AM263P4_R5F0_0 if BOARD_LP_AM263P_AM263P4_R5F0_0
