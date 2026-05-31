@@ -19,6 +19,25 @@
 		zephyr,console = &uart0;
 		zephyr,shell-uart = &uart0;
 	};
+
+	aliases {
+		led0 = &led_ld6;
+		led1 = &led_ld7;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_ld6: led_0 {
+			gpios = <&gpio0 22 GPIO_ACTIVE_LOW>;
+			label = "LD6 (red)";
+		};
+
+		led_ld7: led_1 {
+			gpios = <&gpio0 58 GPIO_ACTIVE_LOW>;
+			label = "LD7 (green)";
+		};
+	};
 };
 
 /*

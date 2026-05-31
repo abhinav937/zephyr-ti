@@ -12,3 +12,6 @@ CONFIG_UART_CONSOLE=y
 
 # Cortex-R5F memory protection
 CONFIG_ARM_MPU=y
+
+# GPIO (direct register access used for early LED bring-up on ControlCARD)
+CONFIG_GPIO=y
