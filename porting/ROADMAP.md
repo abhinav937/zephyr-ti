@@ -4,6 +4,33 @@ Living plan for the TI AM263P port and the motor-control platform built on it.
 Source of truth for sequencing and status. Updated on **every commit** (see the
 Changelog at the bottom; the convention is recorded in `/CLAUDE.md`).
 
+## Next up (resume here)
+
+**Phase 4 — verify the RTI system timer.** Now that the console works, this is
+the fast, high-value next step: it confirms `k_msleep`/`k_timer`/scheduling are
+trustworthy and removes the bring-up `busy_delay()` crutch.
+
+Plan:
+1. `samples/hello_world/src/main.c`: replace the two `busy_delay()` calls with
+   `k_msleep(500)`, and change the heartbeat to print `k_uptime_get()` (ms),
+   e.g. `printk("uptime %lld ms, beat %u\n", k_uptime_get(), beat++);`.
+   Remove `busy_delay()` if then unused.
+2. Build (`.\build.ps1`), load `build/zephyr/zephyr.elf` in CCS → Restart →
+   Resume, watch the 115200 console.
+3. **Pass:** uptime advances ~1000 ms per full LD6→LD7 cycle (two 500 ms
+   sleeps), stable and matching wall-clock; LEDs still alternate.
+4. **If it hangs or timing is wildly off:** the RTI driver/clock is the
+   suspect — check the TI RTI timer driver (commit 10626c28c84), the `rti0`
+   node in `dts/arm/ti/am263p4.dtsi` (`0x52180000`, VIM IRQ 84), and
+   `CONFIG_SYS_CLOCK_*`. Confirm the RTI input clock (GEL showed 200 MHz)
+   matches what the driver assumes.
+5. On success: flip Phase 4 to `[x]`, add a Changelog entry, commit.
+
+Resume context: read `/CLAUDE.md` (rules + verified-facts ledger) and this
+file. Hardware docs are in `vendor-docs/` (datasheet SPRSP81, TRM SPRUJ55,
+ControlCARD guide SPRUJ86). Build with `.\build.ps1`; load over XDS110 (connect
+Core_R5_0 only). Console = XDS110 user-UART COM port, 115200 8N1.
+
 ## Context
 
 This repo is a **fork of Zephyr** that adds **TI AM263P** support. AM263P is
@@ -51,9 +78,11 @@ Status: `[x]` done · `[~]` in progress · `[ ]` not started
       XDS110 virtual COM port at 115200 8N1. Boot banner + heartbeat confirmed.
       Driven by the existing `pinctrl_ti_am263x` driver; ns16550 applies it
       before console use. (RX/shell input not yet exercised — see Phase 5.)
-- [ ] **Phase 2 — `pinctrl-am263x` driver + DT bindings**: move hand-coded pad
-      config into the Zephyr pinctrl model (`pinctrl-0` in `.dts`). Highest
-      leverage for portability.
+- [~] **Phase 2 — `pinctrl-am263x` driver + DT bindings**: mechanism **proven**
+      during Phase 1 — `ti,am263x-pinctrl` binding added, `pinctrl_ti_am263x`
+      driver exercised, UART0 pads configured via `pinctrl-0` in DT. Remaining:
+      migrate the LED bring-up register pokes in `main.c` into DT pinctrl
+      (folds into the GPIO-driver work in Phase 3).
 - [ ] **Phase 3 — real `tmdscncd263p` board + proven GPIO driver**: split the
       ControlCARD from the LaunchPad files; correct LEDs/clocks; confirm or
       replace the GPIO driver.
@@ -85,6 +114,12 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
+
+### 2026-05-31 — docs(am263p): record Phase 4 plan; mark Phase 2 mechanism proven
+- Added a "Next up (resume here)" section with the executable Phase 4 plan
+  (verify RTI timer, swap `busy_delay()` → `k_msleep`, check `k_uptime_get()`).
+- Marked Phase 2 `[~]` (pinctrl mechanism proven in Phase 1; LED migration left).
+- Phase touched: process/docs (planning hand-off; no code/build impact).
 
 ### 2026-05-31 — feat(am263p): Phase 1 UART0 console via DT pinctrl
 - New binding `dts/bindings/pinctrl/ti,am263x-pinctrl.yaml` (`pinmux = <reg val>`).
