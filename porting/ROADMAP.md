@@ -45,9 +45,12 @@ Status: `[x]` done · `[~]` in progress · `[ ]` not started
 - [x] **GPIO / IOMUX proven** — LED blink on LD7/GPIO58 (and LD6/GPIO22 wired),
       pinmux + GPIO register model verified on hardware.
 - [x] **RTI system-timer driver present** — needs tick verification (Phase 4).
-- [ ] **Phase 1 — UART console** *(next)*: pinmux UART0 TX/RX pads so
-      `printk`/console reaches the XDS110 virtual COM port. Unblocks log-based
-      debugging.
+- [x] **Phase 1 — UART console** *(verified on hardware 2026-05-31)*:
+      UART0 TX/RX pads muxed to mode 0 via DT pinctrl
+      (`CONFIG_PINCTRL` + `pinctrl-0` on `&uart0`); `printk`/console reaches the
+      XDS110 virtual COM port at 115200 8N1. Boot banner + heartbeat confirmed.
+      Driven by the existing `pinctrl_ti_am263x` driver; ns16550 applies it
+      before console use. (RX/shell input not yet exercised — see Phase 5.)
 - [ ] **Phase 2 — `pinctrl-am263x` driver + DT bindings**: move hand-coded pad
       config into the Zephyr pinctrl model (`pinctrl-0` in `.dts`). Highest
       leverage for portability.
@@ -82,6 +85,21 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
+
+### 2026-05-31 — feat(am263p): Phase 1 UART0 console via DT pinctrl
+- New binding `dts/bindings/pinctrl/ti,am263x-pinctrl.yaml` (`pinmux = <reg val>`).
+- `dts/arm/ti/am263p4.dtsi`: add `pinctrl@53100000` controller node.
+- Board `lp_am263p` `.dts`: UART0 RX/TX pin nodes (A7 `0x5310006c`=`0x110`,
+  A6 `0x53100070`=`0x100`, mux mode 0 per SPRSP81 Table 5-1) + `pinctrl-0`/
+  `pinctrl-names` on `&uart0`.
+- `..._defconfig`: `CONFIG_PINCTRL=y` (auto-enables `PINCTRL_TI_AM263X`).
+- `samples/hello_world`: add console banner + heartbeat printk.
+- Uses existing `drivers/pinctrl/pinctrl_ti_am263x.c`; ns16550 applies pinctrl
+  at init. RX force-input-enable bit (0x10) provisional until shell input is
+  exercised (Phase 5).
+- **Verified on hardware (2026-05-31):** boot banner + custom banner + heartbeat
+  print at 115200 8N1 on the XDS110 user-UART COM port.
+- Phase touched: **Phase 1 (UART console) — DONE.**
 
 ### 2026-05-31 — docs(am263p): porting roadmap, working rules, vendor docs; verify LD6/GPIO22
 - Added `porting/ROADMAP.md` (this file): context, two-layer architecture,

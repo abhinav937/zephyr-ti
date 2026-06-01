@@ -118,6 +118,11 @@ int main(void)
 	led0_off();
 	led1_off();
 
+	/* Console comes up via DT pinctrl on UART0 (applied before main). */
+	printk("\n*** AM263P ControlCARD: Zephyr console is up (Phase 1) ***\n");
+
+	uint32_t beat = 0U;
+
 	while (1) {
 		/* Alternate: USER_LED0 then USER_LED1. */
 		led0_on();
@@ -127,6 +132,8 @@ int main(void)
 		led0_off();
 		led1_on();
 		busy_delay();
+
+		printk("heartbeat %u (LD6/LD7 alternating)\n", beat++);
 	}
 
 	return 0;

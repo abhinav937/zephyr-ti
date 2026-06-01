@@ -113,5 +113,17 @@
 			ngpios = <32>;
 			status = "okay";
 		};
+
+		/*
+		 * IOMUX pad-config block (PADCONFIG registers, base 0x53100000).
+		 * Individual pads are described in board files via child nodes
+		 * carrying a "pinmux = <reg val>" pair; the AM263x pinctrl driver
+		 * writes val to the absolute reg. The controller needs no addressing
+		 * of its own, so it has no #address-cells.
+		 */
+		pinctrl: pinctrl@53100000 {
+			compatible = "ti,am263x-pinctrl";
+			reg = <0x53100000 0x4000>;
+		};
 	};
 };

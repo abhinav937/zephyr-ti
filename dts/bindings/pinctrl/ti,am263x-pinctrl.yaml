@@ -1,0 +1,27 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  TI AM263x pin controller (IOMUX PADCONFIG block).
+
+  Pads are configured by child nodes, each carrying a single
+  <padconfig-register-address  value> pair in its "pinmux" property. The
+  AM263x pinctrl driver (drivers/pinctrl/pinctrl_ti_am263x.c) writes that
+  value verbatim to the absolute PADCONFIG register, so the controller itself
+  needs no per-pin addressing.
+
+compatible: "ti,am263x-pinctrl"
+
+include: [base.yaml]
+
+child-binding:
+  description: AM263x single-pad configuration.
+  properties:
+    pinmux:
+      type: array
+      required: true
+      description: |
+        Two cells: [0] = absolute PADCONFIG register address, [1] = value to
+        write (mux mode + pad attributes). Addresses are from datasheet
+        SPRSP81 Table 5-1; mux mode 7 selects GPIO, mode 0 selects the pad's
+        primary (named) function.
