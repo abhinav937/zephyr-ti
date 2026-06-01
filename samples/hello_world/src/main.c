@@ -3,15 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * AM263P ControlCARD bring-up sample: alternate the two USER LEDs using the
- * Zephyr GPIO API, paced by the RTI system timer.
+ * Minimal AM263P ControlCARD smoke test: alternate LD6/LD7 via the GPIO API,
+ * paced by the RTI system timer. No shell — see samples/am263_app for the
+ * Phase 5 application skeleton.
  *
- * Everything board-specific now lives in devicetree:
- *   - LED pins:  aliases led0/led1 -> gpio-leds (LD6 = gpio0/22, LD7 = gpio1/26)
- *   - Pad mux:   pinctrl-0 on &gpio0/&gpio1 routes the pads to GPIO mode 7
- *   - GPIO bank: "ti,davinci-gpio" on bank01 (gpio0) and bank23 (gpio1)
- * The LEDs are active-LOW; GPIO_ACTIVE_LOW in DT handles the inversion, so the
- * logical level here reads the obvious way (1 = lit).
+ * LEDs are active-LOW; GPIO_ACTIVE_LOW in DT handles the inversion (1 = lit).
  */
 
 #include <zephyr/kernel.h>
@@ -27,7 +23,6 @@ int main(void)
 		return 0;
 	}
 
-	/* Start with both LEDs off (logical inactive). */
 	gpio_pin_configure_dt(&led0, GPIO_OUTPUT_INACTIVE);
 	gpio_pin_configure_dt(&led1, GPIO_OUTPUT_INACTIVE);
 
@@ -38,7 +33,6 @@ int main(void)
 	uint32_t beat = 0U;
 
 	while (1) {
-		/* Alternate: LD6 then LD7. */
 		gpio_pin_set_dt(&led0, 1);
 		gpio_pin_set_dt(&led1, 0);
 		k_msleep(500);

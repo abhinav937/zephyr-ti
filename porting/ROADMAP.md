@@ -96,8 +96,10 @@ Status: `[x]` done · `[~]` in progress · `[ ]` not started
 - [x] **Phase 4 — system timer verified**: RTI tick works; `k_msleep` and
       `k_uptime_get()` advance. Root cause of the earlier hang: `CPUC0=0`
       (divide-by-2³², ~21 s/tick) instead of `CPUC0=1` (divide-by-1, 200 MHz).
-- [ ] **Phase 5 — single-core app skeleton (Layer 2)**: blinky + Shell, the
-      `app_/task_/cmd_` pattern, Kconfig app-select. Student-template milestone.
+- [~] **Phase 5 — single-core app skeleton (Layer 2)**: in-tree skeleton done
+      (`samples/am263_app`: `app_/task_/cmd_` pattern, Kconfig app-select, blink
+      task + Zephyr shell on UART0 — UART RX proven). Remaining: extract the
+      framework to the out-of-tree Layer-2 workspace consumed via `west.yml`.
 - [ ] **Phase 6 — motor peripherals**: ePWM driver → ADC driver → PWM-synced
       control ISR (custom drivers; no upstream Zephyr equivalents yet).
 - [ ] **Phase 7 — dual-core AMP**: sysbuild + IPC (`ipc_service` + mbox);
@@ -122,6 +124,22 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
+
+### 2026-05-31 — feat(am263p): Phase 5 app skeleton (samples/am263_app) + shell on UART0
+- Proved UART RX end-to-end: enabled the Zephyr shell on UART0 (the chosen
+  `zephyr,shell-uart`); `help`, `am263 uptime`, tab-completion all work.
+- Added `samples/am263_app` — the in-tree seed of the AMDC-style Layer-2 layout:
+  `framework/` (`apps_init()` + `am263` command group), `apps/blink/`
+  (`app_blink` / `task_blink` thread / `cmd_blink` group), Kconfig app-select
+  (`AM263_APP_BLINK`), `main()` only calls `apps_init()`. `blink on|off|rate|status`
+  control the LED task at runtime.
+- `prj.conf`: `CONFIG_SHELL_VT100_COMMANDS=n` for plain-text output on the
+  non-VT100 console terminal (also disables colors + cursor-move escapes).
+- `samples/hello_world` restored to the minimal no-shell smoke test.
+- `build.ps1` default sample -> `samples\am263_app` (`-Sample samples\hello_world`
+  for the smoke test).
+- Verified on hardware: clean shell, blink task + runtime rate control.
+- Remaining for Phase 5: extract the framework out-of-tree (Layer-2 workspace).
 
 ### 2026-05-31 — feat(am263p): tmdscncd263p ControlCARD board; simpler build.ps1 (Phase 3 done)
 - Added `boards/ti/tmdscncd263p` (board.yml, Kconfig, `_r5f0_0` dts/yaml/defconfig,
