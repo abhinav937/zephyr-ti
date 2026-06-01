@@ -49,46 +49,44 @@
 #define LED1_BIT            26U   /* USER_LED1 = GPIO58, bank "23" (58-32) */
 
 /* ================================================================== */
-/* PINMUX --- FILL THESE 4 VALUES FROM SysConfig (or the AM263Px TRM) */
+/* PINMUX --- AM263x IOMUX / pad config                               */
 /* ================================================================== */
 /*
- * How to get them (MCU+ SDK SysConfig, ~2 min):
- *   1. Open/Make a SysConfig file, add the GPIO module, add two outputs.
- *   2. Assign one to ball EPWM7_A (USER_LED0/GPIO22) and one to EPWM7_B
- *      (USER_LED1/GPIO58).
- *   3. Generate, then open ti_drivers_config.c -> Pinmux_init(). You'll see
- *      two lines like:  Pinmux_config(PIN_EPWM7_A, PIN_MODE(n) | ...);
- *   4. From pinmux.h: PADCFG_BASE is the IOMUX base used by Pinmux_config;
- *      PIN_EPWM7_A / PIN_EPWM7_B are the per-pad offsets; n is the GPIO mode.
+ * Each pad's config register lives at PADCFG_BASE + <pad offset>.
+ * Values verified against the TI MCU+ SDK pinmux.h for AM263Px and the
+ * AM263Px datasheet (SPRSP81):
+ *   PADCFG_BASE      = 0x53100000  (IOMUX pad-config block)
+ *   EPWM7_B pad off  = 0xE8        (this pad muxes to GPIO58 in mode 7)
  *
- * Leave PADCFG_BASE as 0 to SKIP pinmux (LEDs will NOT light, but the rest
- * of the program still runs so you can prove execution via a breakpoint).
+ * Pad-config field layout (from pinmux.h):
+ *   bits [3:0]   MUXMODE       7 = GPIO function
+ *   bit  [8]     PULL_DISABLE  1 = internal pull disabled
+ *   bits [17:16] GPIO owner    0 = R5SS0 core0 (our core)  -> PIN_GPIO_R5SS0_0
+ * Output direction is then controlled by the GPIO DIR register, so we do
+ * not need to force the output buffer here.
  */
-#define PADCFG_BASE         0x00000000U   /* <-- IOMUX/pad-config base addr   */
-#define PADCFG_OFF_LED0     0x00000000U   /* <-- offset for EPWM7_A (GPIO22)  */
-#define PADCFG_OFF_LED1     0x00000000U   /* <-- offset for EPWM7_B (GPIO58)  */
-#define PAD_GPIO_MODE       7U            /* <-- GPIO mux mode (often 7)      */
+#define PADCFG_BASE         0x53100000U
 
+#define PAD_OFF_EPWM7_B     0x000000E8U   /* -> GPIO58 = USER_LED1 (LD7) */
+#define PAD_OFF_LIN2_TXD    0x00000058U   /* -> GPIO22 = USER_LED0 (LD6) */
 /*
- * Typical AM26x PADCONFIG field layout (verify in the TRM IOMUX chapter):
- *   bits [3:0]  MUXMODE   - function select (use PAD_GPIO_MODE)
- *   bit  [16]   RXACTIVE  - 1 = input buffer enabled (set so we can read back)
- *   bit  [8]    PULLUDEN  - 1 = internal pull DISABLED (active-low enable)
- * For a push-pull output driving an LED this is a safe starting value.
+ * Both verified in datasheet SPRSP81 Table 5-1 (Pin Attributes):
+ *   ball A8 LIN2_TXD,  LIN2_TXD_CFG_REG @ 0x53100058, mode 7 = GPIO22
+ *   ball ?? EPWM7_B,   EPWM7_B_CFG_REG  @ 0x531000E8, mode 7 = GPIO58
+ * (The ControlCARD guide SPRUJ86 Table 2-12 has a typo naming GPIO22's pad
+ *  "EPWM7_B"; the datasheet pin table is authoritative — it is LIN2_TXD.)
  */
-#define PAD_RXACTIVE        (1U << 16)
-#define PAD_PULL_DISABLE    (1U << 8)
+
+#define PAD_GPIO_MODE7      0x7U
+#define PAD_PULL_DISABLE    (0x1U << 8)
+#define PAD_GPIO_R5SS0_0    (0x0U << 16)
+#define PAD_CFG_GPIO_OUT    (PAD_GPIO_MODE7 | PAD_PULL_DISABLE | PAD_GPIO_R5SS0_0)
 
 static void pinmux_led_pads(void)
 {
-	if (PADCFG_BASE == 0U) {
-		return; /* pinmux not configured yet -- see block above */
-	}
-
-	uint32_t cfg = (PAD_GPIO_MODE & 0xFU) | PAD_RXACTIVE | PAD_PULL_DISABLE;
-
-	sys_write32(cfg, PADCFG_BASE + PADCFG_OFF_LED0);
-	sys_write32(cfg, PADCFG_BASE + PADCFG_OFF_LED1);
+	/* Route both LED pads to GPIO mode (mux 7), owned by R5SS0 core0. */
+	sys_write32(PAD_CFG_GPIO_OUT, PADCFG_BASE + PAD_OFF_LIN2_TXD); /* LD6/GPIO22 */
+	sys_write32(PAD_CFG_GPIO_OUT, PADCFG_BASE + PAD_OFF_EPWM7_B);  /* LD7/GPIO58 */
 }
 
 /* ------------------------------------------------------------------ */
