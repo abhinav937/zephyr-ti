@@ -19,7 +19,7 @@ static K_THREAD_STACK_DEFINE(blink_stack, BLINK_STACK_SIZE);
 static struct k_thread blink_thread;
 
 static volatile bool blink_enabled = true;
-static volatile uint32_t blink_period_ms = 500U;
+static volatile uint32_t blink_interval_ms = 500U; /* on-time per LED */
 
 static void blink_entry(void *p1, void *p2, void *p3)
 {
@@ -31,11 +31,11 @@ static void blink_entry(void *p1, void *p2, void *p3)
 		if (blink_enabled) {
 			gpio_pin_set_dt(&led0, 1);
 			gpio_pin_set_dt(&led1, 0);
-			k_msleep(blink_period_ms);
+			k_msleep(blink_interval_ms);
 
 			gpio_pin_set_dt(&led0, 0);
 			gpio_pin_set_dt(&led1, 1);
-			k_msleep(blink_period_ms);
+			k_msleep(blink_interval_ms);
 		} else {
 			gpio_pin_set_dt(&led0, 0);
 			gpio_pin_set_dt(&led1, 0);
@@ -69,14 +69,14 @@ bool task_blink_get_enabled(void)
 	return blink_enabled;
 }
 
-void task_blink_set_period(uint32_t ms)
+void task_blink_set_interval(uint32_t ms)
 {
 	if (ms > 0U) {
-		blink_period_ms = ms;
+		blink_interval_ms = ms;
 	}
 }
 
-uint32_t task_blink_get_period(void)
+uint32_t task_blink_get_interval(void)
 {
-	return blink_period_ms;
+	return blink_interval_ms;
 }

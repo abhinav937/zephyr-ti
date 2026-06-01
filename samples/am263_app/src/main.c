@@ -19,7 +19,7 @@ int main(void)
 {
 	printk("\n*** AM263P application platform up (Phase 5) ***\n");
 	printk("Build time: %s %s\n", __DATE__, __TIME__);
-	printk("Try: 'help', 'am263 uptime', 'blink status', 'blink rate 200'\n");
+	printk("Try: 'help', 'am263 uptime', 'blink status', 'blink interval 1000'\n");
 
 	apps_init();
 	return 0;

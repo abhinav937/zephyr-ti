@@ -20,8 +20,8 @@ void task_blink_start(void);
 void task_blink_set_enabled(bool enabled);
 bool task_blink_get_enabled(void);
 
-/* Half-period in ms (time each LED stays lit). Must be > 0. */
-void task_blink_set_period(uint32_t ms);
-uint32_t task_blink_get_period(void);
+/* Per-LED on-time in ms: each LED stays lit this long, then they swap. Must be > 0. */
+void task_blink_set_interval(uint32_t ms);
+uint32_t task_blink_get_interval(void);
 
 #endif /* AM263_APP_TASK_BLINK_H */

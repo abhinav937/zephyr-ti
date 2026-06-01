@@ -91,6 +91,35 @@ Check there first. See `vendor-docs/README.md` for what's present and the
   AMDC-style app logic stays in the out-of-tree Layer-2 workspace. Never bake
   app specifics into the Zephyr tree.
 
+## Working method (applies to any agent on this repo)
+
+These are the habits that make this port progress instead of thrashing. Follow
+them; they matter more than raw cleverness.
+
+- **Evidence over theory. Pull the artifact that already holds the answer.**
+  Don't speculate about a bug when a file can decide it. Faulting PC → grep the
+  `.map` for the symbol at that address. Wrong peripheral behavior → read the
+  TRM register/section and compare to the live register dump. A guessed root
+  cause is worth nothing; a quoted line/table/address is worth everything.
+  (Examples: the RTI hang was solved by TRM §13.5.1.4.3 + the measured "FRC +1
+  per ~21 s" matching `2^32 / 200 MHz`; the `0x70040000` crash was identified by
+  finding `_vector_table` at that address in `zephyr.map`.)
+- **Search and read before you edit.** Use grep/find to locate the *actual*
+  code, read the whole function/struct, then change it. Never edit a file you
+  haven't read. Say where you looked.
+- **Primary sources only for hardware facts** (see Rule 1). `vendor-docs/`
+  PDFs > cited TI SDK/online > values the user states. Quote the source; mark
+  anything else **UNVERIFIED** and call it out.
+- **One change at a time, verified on hardware before the next.** Make the
+  minimal change, have the user build/flash and confirm, *then* commit and move
+  on. Don't stack unverified changes.
+- **Write down what you learn.** New verified facts go in the ledger above; new
+  status/decisions go in `porting/ROADMAP.md`. The point is to never re-derive
+  the same fact twice.
+- **When blocked on a fact, narrow the ask to one specific document + table /
+  register / section** and stop — don't fill the gap with a plausible-looking
+  guess.
+
 ## Style
 
 Match surrounding Zephyr conventions. Tabs in `.c`, devicetree idioms in

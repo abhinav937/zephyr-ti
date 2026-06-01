@@ -31,19 +31,19 @@ static int cmd_blink_off(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
-static int cmd_blink_rate(const struct shell *sh, size_t argc, char **argv)
+static int cmd_blink_interval(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc);
 
 	int ms = atoi(argv[1]);
 
 	if (ms <= 0) {
-		shell_error(sh, "rate must be > 0 ms");
+		shell_error(sh, "interval must be > 0 ms");
 		return -EINVAL;
 	}
 
-	task_blink_set_period((uint32_t)ms);
-	shell_print(sh, "blink rate %d ms", ms);
+	task_blink_set_interval((uint32_t)ms);
+	shell_print(sh, "blink interval %d ms (each LED on for %d ms)", ms, ms);
 	return 0;
 }
 
@@ -52,16 +52,17 @@ static int cmd_blink_status(const struct shell *sh, size_t argc, char **argv)
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
-	shell_print(sh, "blink: %s, %u ms",
+	shell_print(sh, "blink: %s, each LED on for %u ms",
 		    task_blink_get_enabled() ? "on" : "off",
-		    task_blink_get_period());
+		    task_blink_get_interval());
 	return 0;
 }
 
 SHELL_STATIC_SUBCMD_SET_CREATE(blink_cmds,
 	SHELL_CMD(on, NULL, "Enable blinking.", cmd_blink_on),
 	SHELL_CMD(off, NULL, "Disable blinking (LEDs off).", cmd_blink_off),
-	SHELL_CMD_ARG(rate, NULL, "Set half-period: rate <ms>.", cmd_blink_rate, 2, 0),
+	SHELL_CMD_ARG(interval, NULL, "On-time per LED: interval <ms> (LEDs swap every <ms>).",
+		      cmd_blink_interval, 2, 0),
 	SHELL_CMD(status, NULL, "Show blink state.", cmd_blink_status),
 	SHELL_SUBCMD_SET_END
 );

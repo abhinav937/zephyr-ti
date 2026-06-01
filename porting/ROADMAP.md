@@ -125,6 +125,15 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
 
+### 2026-05-31 — chore(am263p): blink `interval` command + CLAUDE.md working-method notes
+- `samples/am263_app`: renamed the blink control `rate`/`period` → `interval`,
+  where the value is the per-LED on-time in ms (`interval 1000` = each LED lit
+  1 s, LEDs swap every 1 s). Clearer than the earlier half-period naming that
+  made users suspect a clock bug.
+- `CLAUDE.md`: added a "Working method" section (evidence-over-theory,
+  read-before-edit, primary sources, one verified change at a time, write down
+  what you learn) — portable guidance for any agent working this repo.
+
 ### 2026-05-31 — fix(am263p): RTI counter is 100 MHz, not 200 — timer now wall-clock accurate
 - `soc/ti/am263x/Kconfig.defconfig`: `SYS_CLOCK_HW_CYCLES_PER_SEC` 200M → 100M.
 - Measured directly on the ControlCARD: over a 10 s stopwatch, `k_uptime_get()`
