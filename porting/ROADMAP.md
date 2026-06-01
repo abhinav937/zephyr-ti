@@ -4,6 +4,11 @@ Living plan for the TI AM263P port and the motor-control platform built on it.
 Source of truth for sequencing and status. Updated on **every commit** (see the
 Changelog at the bottom; the convention is recorded in `/CLAUDE.md`).
 
+**Detailed implementer hand-off:** see `porting/IMPLEMENTATION_PLAN.md` (verified
+hardware facts, pin tables, existing code map, per-phase executable steps, and
+the two-layer portability rules). This ROADMAP is the status tracker; the
+Implementation Plan is the "what exactly to do" document.
+
 ## Next up (resume here)
 
 **Phase 4 — verify the RTI system timer.** Now that the console works, this is
@@ -86,8 +91,9 @@ Status: `[x]` done · `[~]` in progress · `[ ]` not started
 - [ ] **Phase 3 — real `tmdscncd263p` board + proven GPIO driver**: split the
       ControlCARD from the LaunchPad files; correct LEDs/clocks; confirm or
       replace the GPIO driver.
-- [ ] **Phase 4 — system timer verified**: confirm RTI tick so
-      `k_msleep`/`k_timer`/scheduling are correct; drop the bring-up busy-wait.
+- [x] **Phase 4 — system timer verified**: RTI tick works; `k_msleep` and
+      `k_uptime_get()` advance. Root cause of the earlier hang: `CPUC0=0`
+      (divide-by-2³², ~21 s/tick) instead of `CPUC0=1` (divide-by-1, 200 MHz).
 - [ ] **Phase 5 — single-core app skeleton (Layer 2)**: blinky + Shell, the
       `app_/task_/cmd_` pattern, Kconfig app-select. Student-template milestone.
 - [ ] **Phase 6 — motor peripherals**: ePWM driver → ADC driver → PWM-synced
@@ -114,6 +120,30 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
+
+### 2026-05-31 — fix(am263p): RTI system timer — CPUC0 prescale off-by-one (Phase 4)
+- `drivers/timer/ti_rti_timer.c`: set `CPUC0 = 1` (was `0`). Per TRM SPRUJ55
+  §13.5.1.4.3, UC0 counts up until it equals CPUC0, then FRC0 increments and
+  UC0 resets. `CPUC0 = 0` only matches on UC0's full 32-bit wrap, so FRC0
+  ticked once per ~21 s — the kernel tick (COMP0 ≈ 200k cycles) never fired,
+  hanging `k_msleep`. `CPUC0 = 1` makes FRC0 advance every input clock (200 MHz).
+- Verified on hardware: FRC0 jumps ~185M counts per short delay; `k_uptime_get()`
+  advances. Phase 4 complete.
+- `samples/hello_world/src/main.c`: removed all RTI debug instrumentation;
+  restored a clean `k_msleep(500)` LED-blink loop.
+- `soc/ti/am263x/soc.c`: re-enabled `am263p_enable_rti_clock()` (GEL-less boots
+  need it) and stripped its verbose debug printks.
+
+### 2026-06-01 — docs: add comprehensive Implementation Plan hand-off document
+- Created `porting/IMPLEMENTATION_PLAN.md`: self-contained implementer guide
+  containing the full verified hardware facts (with sources), pin table,
+  existing code map, two-layer architecture rules, and detailed executable
+  steps for Phases 3–7.
+- Updated this ROADMAP.md to reference the new plan as the primary "what to
+  do" artifact (this file remains the status + changelog source of truth).
+- Goal: future Grok/Claude sessions can read the plan directly from disk
+  instead of relying on long context.
+- Phase touched: process/docs (no code or build impact).
 
 ### 2026-05-31 — docs(am263p): record Phase 4 plan; mark Phase 2 mechanism proven
 - Added a "Next up (resume here)" section with the executable Phase 4 plan

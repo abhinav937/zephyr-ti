@@ -16,8 +16,10 @@
  * PADCONFIG mux mode is switched to GPIO. That is what pinmux_led_pads()
  * below does. Without it, the GPIO register writes do nothing visible.
  *
- * This version intentionally uses a busy-wait (not k_msleep) so the blink
- * does not depend on the RTI system-tick driver during first bring-up.
+ * Phase 4 verification: this sample now uses k_msleep(500) + k_uptime_get()
+ * driven by the RTI system timer (ti_rti_timer driver, 200 MHz input clock).
+ * The raw GPIO register pokes + manual pinmux remain for now (will be
+ * replaced by proper gpio-leds + DT pinctrl in Phase 3).
  */
 
 #include <zephyr/kernel.h>
@@ -97,14 +99,6 @@ static inline void led0_off(void) { sys_write32(1U << LED0_BIT, GPIO_SET_DATA01)
 static inline void led1_on(void)  { sys_write32(1U << LED1_BIT, GPIO_CLR_DATA23); }
 static inline void led1_off(void) { sys_write32(1U << LED1_BIT, GPIO_SET_DATA23); }
 
-static void busy_delay(void)
-{
-	/* ~ a few hundred ms at 400 MHz; tune to taste. volatile = not optimized away. */
-	for (volatile uint32_t i = 0; i < 8000000U; i++) {
-		__asm__ volatile("nop");
-	}
-}
-
 int main(void)
 {
 	/* 1. Route the two pads to GPIO (the step that actually matters). */
@@ -119,21 +113,27 @@ int main(void)
 	led1_off();
 
 	/* Console comes up via DT pinctrl on UART0 (applied before main). */
-	printk("\n*** AM263P ControlCARD: Zephyr console is up (Phase 1) ***\n");
+	printk("\n*** AM263P ControlCARD: Zephyr console is up ***\n");
+	printk("Build time: %s %s\n", __DATE__, __TIME__);
+	printk("sys_clock_hw_cycles_per_sec = %u\n", sys_clock_hw_cycles_per_sec());
 
+	/*
+	 * Phase 4: blink driven by the RTI system timer. k_msleep() and
+	 * k_uptime_get() exercise the ti_rti_timer tick (200 MHz FRC0).
+	 */
 	uint32_t beat = 0U;
 
 	while (1) {
 		/* Alternate: USER_LED0 then USER_LED1. */
 		led0_on();
 		led1_off();
-		busy_delay();
+		k_msleep(500);
 
 		led0_off();
 		led1_on();
-		busy_delay();
+		k_msleep(500);
 
-		printk("heartbeat %u (LD6/LD7 alternating)\n", beat++);
+		printk("uptime %lld ms, beat %u\n", k_uptime_get(), beat++);
 	}
 
 	return 0;

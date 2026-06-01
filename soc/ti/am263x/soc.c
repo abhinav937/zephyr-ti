@@ -54,6 +54,9 @@ int z_soc_irq_is_enabled(unsigned int irq)
 	return z_vim_irq_is_enabled(irq);
 }
 
+/* Forward declaration for the RTI clock helper below */
+static void am263p_enable_rti_clock(void);
+
 void soc_early_init_hook(void)
 {
 	sys_cache_data_enable();
@@ -65,4 +68,39 @@ void soc_early_init_hook(void)
 	 * frequency. Explicit PLL programming via TOP_RCM/MSS_RCM can be added
 	 * later if a specific SYSCLK is required (see docs/am263p-memory-map.md).
 	 */
+
+	/*
+	 * Route and ungate the RTI0 input clock. On the ControlCARD the GEL
+	 * script already does this, but doing it here makes the RTI system
+	 * timer self-sufficient on a GEL-less boot (SBL/ROM only).
+	 */
+	am263p_enable_rti_clock();
+}
+
+/*
+ * Minimal RTI0 clock enable, modeled after TI MCU+ SDK soc_rcm.c.
+ * Register addresses from SDK cslr_mss_rcm.h + cslr_soc_baseaddress.h.
+ */
+static void am263p_enable_rti_clock(void)
+{
+#define MSS_RCM_BASE             0x53208000U
+#define MSS_RCM_RTI0_CLK_SRC_SEL (MSS_RCM_BASE + 0x114U)
+#define MSS_RCM_RTI0_CLK_DIV_VAL (MSS_RCM_BASE + 0x214U)
+#define MSS_RCM_RTI0_CLK_GATE    (MSS_RCM_BASE + 0x314U)
+
+	/* KICK registers — unlock MSS_RCM before writing clock registers. */
+#define MSS_RCM_LOCK0_KICK0      (MSS_RCM_BASE + 0x1008U)
+#define MSS_RCM_LOCK0_KICK1      (MSS_RCM_BASE + 0x100CU)
+
+	*(volatile uint32_t *)MSS_RCM_LOCK0_KICK0 = 0x68EF3490U;
+	*(volatile uint32_t *)MSS_RCM_LOCK0_KICK1 = 0xD172BC5AU;
+
+	/*
+	 * Per upstream mcupsdk-core: SYS_CLK (0x222) is guaranteed running early
+	 * (the R5 runs on it); divider 0 = divide-by-1; gate 0 = enabled. Both
+	 * SRC_SEL and DIV_VAL use a 3× redundant encoding.
+	 */
+	*(volatile uint32_t *)MSS_RCM_RTI0_CLK_SRC_SEL = 0x222U; /* SYS_CLK */
+	*(volatile uint32_t *)MSS_RCM_RTI0_CLK_DIV_VAL = 0x000U; /* /1 */
+	*(volatile uint32_t *)MSS_RCM_RTI0_CLK_GATE    = 0x0U;   /* ungate */
 }

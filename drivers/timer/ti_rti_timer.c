@@ -169,8 +169,17 @@ static int sys_clock_driver_init(void)
 	rti_write(rti_timer_dev, RTI_GCTRL,
 		  rti_read(rti_timer_dev, RTI_GCTRL) & ~RTI_GCTRL_CNT0EN);
 
-	/* Prescale = 1: FRC0 advances every RTI input clock. */
-	rti_write(rti_timer_dev, RTI_CPUC0, 0);
+	/*
+	 * CPUC0 = 1: UC0 matches its compare every RTI input clock, so FRC0
+	 * advances at the full RTI_FCLK rate (200 MHz).
+	 *
+	 * CPUC0 = 0 does NOT mean "divide by 1": UC0 counts up until it equals
+	 * CPUC0, and only then is FRC0 incremented and UC0 reset (TRM SPRUJ55
+	 * §13.5.1.4.3). With CPUC0 = 0 the match never happens until UC0 wraps
+	 * the full 32 bits, i.e. FRC0 ticks once per 2^32 clocks (~21 s) — which
+	 * is why the kernel tick previously never fired.
+	 */
+	rti_write(rti_timer_dev, RTI_CPUC0, 1);
 	rti_write(rti_timer_dev, RTI_UC0, 0);
 	rti_write(rti_timer_dev, RTI_FRC0, 0);
 
