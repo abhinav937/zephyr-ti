@@ -12,10 +12,13 @@ config NUM_IRQS
 	default 256 if SOC_SERIES_AM263X_R5
 
 config SYS_CLOCK_HW_CYCLES_PER_SEC
-	# RTI counter input clock.
-	# Measured on TMDSCNCD263P ControlCARD (gel): 200 MHz.
-	# Update if your board uses a different RTI source clock.
-	default 200000000 if SOC_SERIES_AM263X_R5
+	# RTI counter (FRC0) input clock = 100 MHz on the TMDSCNCD263P ControlCARD.
+	# Measured directly: over a 10 s stopwatch interval k_uptime_get() advanced
+	# ~5.14 s, i.e. the counter runs at half the previously assumed 200 MHz. The
+	# UART console is not garbled, so this is the RTI source clock specifically
+	# (not a global 2x error). UNVERIFIED why it is /2 — confirm the MSS_RCM RTI
+	# clock mux / divider vs SYS_CLK in TRM SPRUJ55 and the GEL.
+	default 100000000 if SOC_SERIES_AM263X_R5
 
 if SERIAL
 

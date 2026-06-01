@@ -125,6 +125,18 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
 
+### 2026-05-31 — fix(am263p): RTI counter is 100 MHz, not 200 — timer now wall-clock accurate
+- `soc/ti/am263x/Kconfig.defconfig`: `SYS_CLOCK_HW_CYCLES_PER_SEC` 200M → 100M.
+- Measured directly on the ControlCARD: over a 10 s stopwatch, `k_uptime_get()`
+  advanced ~5.14 s, i.e. the RTI FRC0 counter runs at half the assumed rate.
+  Everything timed (`k_msleep`, uptime) was 2× slow in wall-clock terms while
+  staying self-consistent — which is why the earlier "uptime advances" check
+  didn't catch it. UART console is clean, so this is the RTI source clock
+  specifically, not a global 2× error.
+- UNVERIFIED why it is /2 (SYS_CLK/2 vs SYS_CLK actually 100 MHz vs the
+  `RTI0_CLK_DIV_VAL=0` write not being /1) — to confirm against TRM SPRUJ55
+  MSS_RCM RTI clock mux/divider + the GEL.
+
 ### 2026-05-31 — feat(am263p): Phase 5 app skeleton (samples/am263_app) + shell on UART0
 - Proved UART RX end-to-end: enabled the Zephyr shell on UART0 (the chosen
   `zephyr,shell-uart`); `help`, `am263 uptime`, tab-completion all work.
