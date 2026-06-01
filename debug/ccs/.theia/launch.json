@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(Deprecated) Theia/CCS Debug - Do not use",
+            "type": "ccs-debug",
+            "request": "launch",
+            "targetConfig": "${workspaceFolder}/tmdscncd263p_xds110_r5f0_0.ccxml",
+            "program": "${workspaceFolder}/zephyr.elf",
+            "connections": [
+                {
+                    "name": "Texas Instruments XDS110 USB Debug Probe"
+                }
+            ]
+        },
+        {
+            "name": "tmdscncd263p_xds110_r5f0_0.ccxml",
+            "type": "ccs-debug",
+            "request": "launch",
+            "targetConfig": "${workspaceFolder}\\tmdscncd263p_xds110_r5f0_0.ccxml"
+        }
+    ]
+}

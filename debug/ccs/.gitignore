@@ -1,0 +1,15 @@
+# Ignore binaries and generated debug artifacts in this folder.
+# The refresh-elf.ps1 script intentionally populates zephyr.elf here for CCS convenience.
+zephyr.elf
+*.out
+*.bin
+*.map
+
+# CCS generated files that are user- and probe-specific
+*.launch
+*.launch.bak
+
+# Any temporary CCS files
+*.tmp
+*.log
+*.dat

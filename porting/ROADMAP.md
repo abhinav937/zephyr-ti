@@ -121,6 +121,16 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
 
+### 2026-05-31 — chore(am263p): build robustness + CCS debug configs
+- `build.ps1`: auto-detect the Zephyr SDK (env var → `zephyr-sdk-*` under
+  `$HOME`/`C:\` → legacy path) and CMake; lock board/sample to the AM263P
+  bring-up target; aggressive force-rebuild of `soc.c`/`main.c` to work around
+  unreliable CMake dependency tracking on this machine; clearer next-step output.
+- `debug/ccs/`: checked-in CCS launch/target configs (`.ccxml`, `.theia`),
+  `refresh-elf.ps1`, and `kill-xds110.cmd` for the `-215` probe-lock error.
+  Nested `.gitignore` keeps `zephyr.elf`/`*.launch`/binaries out of git.
+- Phase touched: tooling/process (no firmware impact).
+
 ### 2026-05-31 — fix(am263p): RTI system timer — CPUC0 prescale off-by-one (Phase 4)
 - `drivers/timer/ti_rti_timer.c`: set `CPUC0 = 1` (was `0`). Per TRM SPRUJ55
   §13.5.1.4.3, UC0 counts up until it equals CPUC0, then FRC0 increments and
