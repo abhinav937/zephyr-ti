@@ -83,14 +83,15 @@ Status: `[x]` done · `[~]` in progress · `[ ]` not started
       XDS110 virtual COM port at 115200 8N1. Boot banner + heartbeat confirmed.
       Driven by the existing `pinctrl_ti_am263x` driver; ns16550 applies it
       before console use. (RX/shell input not yet exercised — see Phase 5.)
-- [~] **Phase 2 — `pinctrl-am263x` driver + DT bindings**: mechanism **proven**
-      during Phase 1 — `ti,am263x-pinctrl` binding added, `pinctrl_ti_am263x`
-      driver exercised, UART0 pads configured via `pinctrl-0` in DT. Remaining:
-      migrate the LED bring-up register pokes in `main.c` into DT pinctrl
-      (folds into the GPIO-driver work in Phase 3).
-- [ ] **Phase 3 — real `tmdscncd263p` board + proven GPIO driver**: split the
-      ControlCARD from the LaunchPad files; correct LEDs/clocks; confirm or
-      replace the GPIO driver.
+- [x] **Phase 2 — `pinctrl-am263x` driver + DT bindings**: `ti,am263x-pinctrl`
+      binding + `pinctrl_ti_am263x` driver proven during Phase 1 (UART0 pads);
+      the LED bring-up register pokes in `main.c` are now migrated to DT pinctrl
+      (`led_ld6_default`/`led_ld7_default` on `&gpio0`/`&gpio1`), so no raw pad
+      writes remain.
+- [~] **Phase 3 — real `tmdscncd263p` board + proven GPIO driver**: GPIO driver
+      proven — LEDs LD6/LD7 driven through the `ti,davinci-gpio` driver via DT
+      (verified on hardware). Remaining: split the ControlCARD board files out
+      from the LaunchPad `lp_am263p` files (own `boards/ti/tmdscncd263p`).
 - [x] **Phase 4 — system timer verified**: RTI tick works; `k_msleep` and
       `k_uptime_get()` advance. Root cause of the earlier hang: `CPUC0=0`
       (divide-by-2³², ~21 s/tick) instead of `CPUC0=1` (divide-by-1, 200 MHz).
@@ -120,6 +121,27 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
+
+### 2026-05-31 — feat(am263p): LEDs via ti,davinci-gpio driver + DT pinctrl (Phase 2 done, Phase 3 GPIO proven)
+- Correct GPIO model: per TRM SPRUJ55 §13.1.1 a single GPIO instance
+  (GPIO0 @ 0x52000000 for R5FSS0-core0) covers all signals via banked register
+  *pairs* (`*_DATA01` = signals 0..31, `*_DATA23` = 32..63), and there are four
+  per-core instances (GPIO0..3) — not a pin-range split. Corrects the old
+  "GPIO0 vs GPIO1 = low vs high pins" assumption in the to-verify list.
+- `dts/arm/ti/am263p4.dtsi`: replaced the 32-pin placeholder `gpio0` with two
+  `ti,davinci-gpio` bank nodes whose `reg` points at each bank pair's DIR so the
+  flat driver struct lines up: `gpio0 @0x52000010` (bank01, signals 0..31),
+  `gpio1 @0x52000038` (bank23, signals 32..63). Both default `disabled`.
+  DIR/OUT/SET/CLR offsets verified; in_data/trigger regs left UNVERIFIED
+  (output-only) pending the TRM GPIO register-map table.
+- `boards/ti/lp_am263p/...dts`: LD7/GPIO58 -> `&gpio1 26`; added
+  `led_ld6_default`/`led_ld7_default` pad-mux (mode7, `0x107`) and enabled
+  `&gpio0`/`&gpio1` with their `pinctrl-0`. Closes the Phase 2 remainder.
+- `samples/hello_world/src/main.c`: rewritten to the GPIO API (`gpio_dt_spec`
+  from `DT_ALIAS(led0/led1)`); all raw GPIO/pinmux register pokes removed.
+- Verified on hardware: LD6/LD7 alternate at 500 ms, `uptime` advances. (An
+  UNDEFINED-INSTRUCTION abort at PC=0x70040000 = `_vector_table` seen while
+  using the debugger is a JTAG halt/resume-from-WFI artifact, not a fault.)
 
 ### 2026-05-31 — chore(am263p): build robustness + CCS debug configs
 - `build.ps1`: auto-detect the Zephyr SDK (env var → `zephyr-sdk-*` under

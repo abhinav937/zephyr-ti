@@ -100,18 +100,37 @@
 		};
 
 		/*
-		 * GPIO bank 0 (base 0x52000000). Placeholder for task #23.
-		 * TODO(verify): confirm the AM263x GPIO register layout is
-		 * compatible with "ti,davinci-gpio"; it may need a dedicated
-		 * binding/driver. Not required for first boot (node disabled).
+		 * GPIO0 instance (R5FSS0-core0), peripheral base 0x52000000.
+		 * Per TRM SPRUJ55 §13.1.1 a single GPIO instance covers all GPIO
+		 * signals through banked register *pairs* (GPIO_*_DATA01 for
+		 * signals 0..31, GPIO_*_DATA23 for 32..63, ...). The generic
+		 * "ti,davinci-gpio" driver is a flat 32-pin-per-node model whose
+		 * register struct starts at DIR, so each node's `reg` points at
+		 * one bank pair's DIR register:
+		 *   gpio0 -> bank01 DIR @ +0x10 -> GPIO signals 0..31
+		 *   gpio1 -> bank23 DIR @ +0x38 -> GPIO signals 32..63
+		 * DIR/OUT_DATA/SET_DATA/CLR_DATA offsets are verified (CLAUDE.md,
+		 * from SDK gpio.h). The in_data/trigger registers in the driver
+		 * struct are NOT yet TRM-verified — correct for OUTPUT use; must
+		 * be confirmed before relying on GPIO input or interrupts.
+		 * Boards enable the bank(s) they use.
 		 */
-		gpio0: gpio@52000000 {
+		gpio0: gpio@52000010 {
 			compatible = "ti,davinci-gpio";
-			reg = <0x52000000 0x100>;
+			reg = <0x52000010 0x28>;
 			gpio-controller;
 			#gpio-cells = <2>;
 			ngpios = <32>;
-			status = "okay";
+			status = "disabled";
+		};
+
+		gpio1: gpio@52000038 {
+			compatible = "ti,davinci-gpio";
+			reg = <0x52000038 0x28>;
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpios = <32>;
+			status = "disabled";
 		};
 
 		/*
