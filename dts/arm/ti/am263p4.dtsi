@@ -163,5 +163,32 @@ epwm7: epwm@50007000 {
 	#pwm-cells = <3>;
 	status = "disabled";
 };
+
+/*
+ * ADC instances (Type 4 SAR) in CONTROLSS.
+ * Bases from MCU+ SDK cslr_soc_baseaddress.h (verified):
+ *   ADC0 cfg @ 0x502C0000, result @ 0x50100000 (similar stride for ADC1-4).
+ * Separate windows: cfg for SOC/CTL/INT config, result for ADCRESULTx (16x 16-bit).
+ * Clock: shares the CONTROLSS source clock (already enabled in soc.c for ePWM).
+ * Reference: may require SOC_enableAdc*Reference() from SDK soc.c (TOP_CTRL refbuf)
+ * or external VREF on board; UNVERIFIED for ControlCARD until tested.
+ * Interrupts: 4x ADCINT per module + PPB/OSINT events, routed via
+ * CONTROLSS_INTRXBAR0 -> VIM input line (see TRM 7.5.2.13 + 10.3/10.4).
+ * For initial software-triggered polling use, interrupts property is omitted.
+ * DT node uses two reg entries (cfg, result) per instance.
+ */
+adc0: adc@502c0000 {
+	compatible = "ti,am263x-adc";
+	reg = <0x502C0000 0x1000>, <0x50100000 0x1000>;
+	#io-channel-cells = <1>;
+	status = "disabled";
+};
+
+adc1: adc@502c1000 {
+	compatible = "ti,am263x-adc";
+	reg = <0x502C1000 0x1000>, <0x50101000 0x1000>;
+	#io-channel-cells = <1>;
+	status = "disabled";
+};
 };
 };

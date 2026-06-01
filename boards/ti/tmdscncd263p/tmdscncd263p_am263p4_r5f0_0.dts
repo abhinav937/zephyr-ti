@@ -30,6 +30,15 @@
 	aliases {
 		led0 = &led_ld6;
 		/* LD7 is driven by ePWM (see &led_ld7_pwm), not GPIO. */
+
+		/* Built-in potentiometers on the TMDSHSECDOCK-AM263 (SPRUJ73) dock.
+		 * Pot1 → ADC0_AIN0, Pot2 → ADC0_AIN1 (via HSEC).
+		 * See dock headers J18/J65 (Pot1) and J22/J66 (Pot2).
+		 * Default jumpers (pots through op-amps): J18 2-3 + J65 1-2,
+		 * J22 2-3 + J66 1-2.
+		 */
+		potentiometer0 = &dock_pot0;
+		potentiometer1 = &dock_pot1;
 	};
 
 	leds {
@@ -64,6 +73,37 @@
 			pwms = <&epwm7 1 PWM_USEC(250) PWM_POLARITY_NORMAL>;
 			label = "LD7 (PWM brightness)";
 		};
+	};
+
+	/*
+	 * Built-in 10 kΩ potentiometers on the TMDSHSECDOCK-AM263 dock (SPRUJ73).
+	 * When the ControlCARD is plugged into the dock with the recommended
+	 * jumpers, these appear as:
+	 *   - dock_pot0 → ADC0_AIN0 (dock Pot1 via J18/J65)
+	 *   - dock_pot1 → ADC0_AIN1 (dock Pot2 via J22/J66)
+	 *
+	 * See SPRUJ73 Table 2-11 and Figure 2-7 for jumper options
+	 * (recommended: route pots through the on-dock OPA2837 op-amps).
+	 */
+	dock_pot0: dock_pot0 {
+		compatible = "voltage-divider";
+		io-channels = <&adc0 0>;
+		io-channel-names = "DOCK_POT1";
+		/* Pot wiper is a direct ADC input; 1:1 (output==full) = no scaling.
+		 * Required by the voltage-divider binding; raw reads via &adc0 are
+		 * what matter for bring-up. */
+		output-ohms = <10000>;
+		full-ohms = <10000>;
+		label = "Dock Potentiometer 1 (ADC0_AIN0)";
+	};
+
+	dock_pot1: dock_pot1 {
+		compatible = "voltage-divider";
+		io-channels = <&adc0 1>;
+		io-channel-names = "DOCK_POT2";
+		output-ohms = <10000>;
+		full-ohms = <10000>;
+		label = "Dock Potentiometer 2 (ADC0_AIN1)";
 	};
 };
 
@@ -144,5 +184,22 @@
 
 /* RTI0 — Zephyr system tick source. */
 &rti0 {
+	status = "okay";
+};
+
+/*
+ * ADC0 (Phase 6). When used with the TMDSHSECDOCK-AM263 (SPRUJ73), the two
+ * on-dock 10 kΩ potentiometers are connected to ADC0_AIN0 and ADC0_AIN1.
+ *
+ * Recommended dock jumper settings (pots → op-amps):
+ *   J18 pins 2-3 + J65 pins 1-2   → dock_pot0 (ADC0 channel 0)
+ *   J22 pins 2-3 + J66 pins 1-2   → dock_pot1 (ADC0 channel 1)
+ *
+ * See vendor-docs/spruj73-dock.pdf, Section 2.5.1 and Table 2-11.
+ *
+ * Software polling works with the current driver. No extra pinctrl is
+ * required for the HSEC-routed ADC inputs in basic use.
+ */
+&adc0 {
 	status = "okay";
 };

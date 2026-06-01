@@ -128,3 +128,9 @@ ZephyrModuleFile.txt
 
 # Node dependecies
 node_modules
+
+# Local agent / IDE artifacts (not part of the port)
+.mcps/
+mcps/
+.claude/
+terminals/

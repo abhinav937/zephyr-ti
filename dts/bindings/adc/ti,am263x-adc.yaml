@@ -1,0 +1,30 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: TI AM263x / AM263Px ADC (Type 4 SAR, CONTROLSS)
+
+compatible: "ti,am263x-adc"
+
+include:
+  - name: adc-controller.yaml
+  - name: pinctrl-device.yaml
+
+properties:
+  reg:
+    required: true
+    type: array
+    description: |
+      ADC config register base followed by result register base.
+      Example for ADC0:
+        reg = <0x502C0000 0x1000>, <0x50100000 0x1000>;
+
+  interrupts:
+    required: false
+    description: |
+      VIM interrupt(s). Optional for polling / software-triggered use.
+
+  "#io-channel-cells":
+    const: 1
+
+io-channel-cells:
+  - input

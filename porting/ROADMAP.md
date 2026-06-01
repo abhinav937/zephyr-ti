@@ -23,14 +23,17 @@ runs blink + shell + hardware LD7 PWM brightness on the ControlCARD.
   map, period/duty/polarity, proven on hardware via LD7 brightness.
 - Clock bring-up: `soc.c` enables the CONTROLSS source clock; the driver enables
   per-instance `EPWM_CLKSYNC`. EPWMCLK verified = 200 MHz (GEL + SDK).
+- **ADC driver `ti,am263x-adc`** (`drivers/adc/adc_ti_am263x.c`) + binding + DT:
+  register map audited against SDK `cslr_adc.h`; per-instance clock ungate,
+  reset, TOP_CTRL ref buffer (`MASK_ANA_ISO` sequence), 12-bit single-ended.
+  Software-trigger + INT1 poll aligned with SDK `adc_soc_software`. **Proven on
+  hardware** (TMDSHSECDOCK pots → ADC0_AIN0/1; mid-travel raw ~3800 @ 1.8 V FS).
+  Layer-2 `adc read` / `adc dump` shell commands.
 
 **Phase 6 remaining:**
-1. **ADC driver** (`ti,am263x-adc` or similar) — bring up one ADC, DT binding,
-   read a channel from the shell. Pull register map from MCU+ SDK
-   `cslr_*adc*.h` + TRM (same method as ePWM — never guess).
-2. **PWM-synced control ISR** — ePWM SOCA/SOCB triggers ADC start-of-conversion;
+1. **PWM-synced control ISR** — ePWM SOCA/SOCB triggers ADC start-of-conversion;
    ADC EOC fires the control ISR. This is the deterministic control loop core.
-3. Wire a small Layer-2 demo app (e.g. read a pot → set LD7 brightness) to prove
+2. Wire a small Layer-2 demo app (e.g. read a pot → set LD7 brightness) to prove
    the ePWM↔ADC↔ISR chain end to end.
 
 After Phase 6: Phase 7 (dual-core AMP — sysbuild + IPC).
@@ -111,8 +114,8 @@ Status: `[x]` done · `[~]` in progress · `[ ]` not started
       contract holds (no app logic in this tree).
 - [~] **Phase 6 — motor peripherals**: ePWM driver → ADC driver → PWM-synced
       control ISR (custom drivers; no upstream Zephyr equivalents yet). **ePWM
-      driver done + proven on hardware** (`ti,am263x-epwm`: clock bring-up,
-      period/duty/polarity, LD7 brightness). Next: ADC, then the control ISR.
+      and ADC (software-trigger poll) done + proven on hardware**; next: ePWM
+      SOCA → ADC EOC ISR chain + pot→PWM demo.
 - [ ] **Phase 7 — dual-core AMP**: sysbuild + IPC (`ipc_service` + mbox);
       comms/shell on one core, deterministic control loop on another (the full
       AMDC topology).
@@ -135,6 +138,62 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
+
+### 2026-06-01 — feat(am263p): Phase 6 ADC driver proven on hardware (dock pots)
+- `drivers/adc/adc_ti_am263x.c`: full bring-up path — `CONTROLSS_CTRL` per-ADC
+  clock ungate + reset, TOP_CTRL ref buffer with `MASK_ANA_ISO` (SDK soc.c),
+  12-bit single-ended `ADCCTL2`, ACQPS = sampleWindow−1. INT1 source/enable in
+  `channel_setup()` (SDK `adc_soc_software`); `read()` polls INT1 only.
+- Board: `&adc0 { status = "okay"; }`, `dock_pot0/1` voltage-divider nodes +
+  aliases (SPRUJ73 dock → ADC0_AIN0/1).
+- `dts/bindings/adc/ti,am263x-adc.yaml`, `am263p4.dtsi` adc0/1 nodes, Kconfig/CMake.
+- `CLAUDE.md`: ADC ledger (VREF ~1.8 V vs 3.3 V pots, jumpers SW9/J65/J66).
+- `vendor-docs/spruj73-dock.pdf` added. `.gitignore`: exclude `mcps/`, `.claude/`,
+  `terminals/` local artifacts.
+- Hardware: `adc read 0/1` tracks pot (~3800 mid-travel with 1.8 V FS); no
+  ETIMEDOUT. Layer-2 shell in separate `am263-layer2` commit.
+- Phase touched: Phase 6 (ADC software path proven; PWM-synced ISR next).
+
+### 2026-06-02 — feat(am263p): Phase 6 ADC driver skeleton (software trigger + poll)
+- Added `dts/bindings/adc/ti,am263x-adc.yaml` (compatible "ti,am263x-adc",
+  two-reg (cfg+result), optional pinctrl, io-channel-cells=1).
+- `dts/arm/ti/am263p4.dtsi`: added disabled `adc0`/`adc1` nodes with verified
+  bases (SDK cslr_soc_baseaddress.h: ADC0 cfg 0x502C0000 / result 0x50100000).
+  IRQ via CONTROLSS XBAR left for later (polling first). Updated memory-map.md
+  cross-ref.
+- New `drivers/adc/adc_ti_am263x.c`: minimal Zephyr ADC driver (channel_setup
+  with SW-only SOC, adc_read polling on ADCINTFLG after forceSOC, 12-bit read
+  from result window). Uses CONTROLSS clock (already up). Cited CSL + TRM §7.5.2.
+- `drivers/adc/{Kconfig,CMakeLists.txt}`: wired CONFIG_ADC_TI_AM263X +
+  source (depends on DT_HAS_TI_AM263X_ADC_ENABLED).
+- ROADMAP: updated Phase 6 "done so far" + new changelog entry. No board enable
+  or Layer-2 shell cmd yet (next: enable on tmdscncd263p + test read; refbuf if
+  needed from SDK soc.c).
+- Phase touched: Phase 6 (ADC bring-up start; ePWM remains proven).
+
+### 2026-06-01 — fix(am263p): audit + fix the AM263x ADC driver (Phase 6 ADC bring-up)
+- Audited `drivers/adc/adc_ti_am263x.c` against MCU+ SDK `adc/v2/cslr_adc.h` +
+  `soc.c` (same discipline as the ePWM driver). It had the same class of bugs:
+  - Wrong offsets: `ADCSOCFRC1` 0x0E→**0x1A**, `ADCSOC0CTL` 0x10→**0x20**,
+    `ADCSOCFLG1` 0x0C→**0x18** (0x0E/0x10 are actually ADCINTSEL1N2/3N4).
+  - Wrong `ADCSOCxCTL` field positions: now `ACQPS[8:0]`, `CHSEL[19:15]`,
+    `TRIGSEL[26:20]` (were [3:0]/@8/@16).
+  - Missing `ADCINTSEL1N2` config → `ADCINTFLG` never set → every read timed out.
+    Now `read()` maps INT1SEL=SOC + INT1E before forcing the SW SOC.
+  - Missing reference buffer → no valid conversion. Added `adc_ti_enable_reference`
+    (TOP_CTRL `0x50D80000`, KICK-locked: REFBUF0_CTRL=0x7 + REF_COMP_CTRL),
+    mirroring SDK `SOC_enableAdcReference`, + a 500 µs power-up settling delay.
+  - Channel map simplified to SOC n = AIN n (`channel_id`), avoiding a
+    `CONFIG_ADC_CONFIGURABLE_INPUTS` dependency.
+- Verified-correct and kept: bases (cfg 0x502C0000 / result 0x50100000), ADCCTL1/2
+  offsets+bits, PRESCALE=6 (/4), result stride 2 / 12-bit, ADC clock (CONTROLSS
+  source + per-ADC gate ungated at reset).
+- Layer-2: `apps/blink/cmd_adc.c` adds `adc read <ch>`; prj.conf enables
+  `CONFIG_ADC` + `CONFIG_ADC_TI_AM263X`.
+- Board DTS: added required `output-ohms`/`full-ohms` (1:1) to the dock_pot
+  voltage-divider nodes so the DT build passes (pot wiper is a direct input).
+- CLAUDE.md ADC ledger corrected (the prior offsets/fields there were the wrong
+  ones that caused the bug). Not yet hardware-verified.
 
 ### 2026-06-01 — chore(am263p): close out Phase 5 (Layer-2 extraction complete)
 - Phase 5 flipped to `[x]`. The Layer-2 workspace (`C:\am263-layer2`) is the live

@@ -156,6 +156,13 @@ source "drivers/adc/Kconfig.smartbond"
 source "drivers/adc/Kconfig.stm32"
 source "drivers/adc/Kconfig.test"
 source "drivers/adc/Kconfig.ti_am335x"
+config ADC_TI_AM263X
+	bool "TI AM263x ADC driver"
+	depends on DT_HAS_TI_AM263X_ADC_ENABLED
+	help
+	  Enable driver for TI AM263x / AM263Px Type-4 ADC modules (CONTROLSS).
+	  Supports software-triggered one-shot reads (polling). PWM-synchronized
+	  and interrupt-driven paths added in later Phase 6 steps.
 source "drivers/adc/Kconfig.tla202x"
 source "drivers/adc/Kconfig.vf610"
 source "drivers/adc/Kconfig.xec"

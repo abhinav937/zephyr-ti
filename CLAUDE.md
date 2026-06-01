@@ -166,6 +166,62 @@ Check there first. See `vendor-docs/README.md` for what's present and the
   *ratio* is clock-independent, so brightness is correct regardless; only the
   carrier frequency would shift if a measurement later shows a /2 here too.
 
+### Verified ADC facts (initial, 2026-06, Phase 6 start)
+- 5x Type-4 SAR ADC modules (ADC0-4) in CONTROLSS + 2x resolver SARs (ADC_R0/1).
+  Bases (SDK cslr_soc_baseaddress.h, also in docs/am263p-memory-map.md):
+    ADC0 cfg `CSL_CONTROLSS_ADC0_U_BASE 0x502C0000`, result `..._RESULT 0x50100000`
+    (stride 0x1000 for both; ADC1 @ +0x1000 etc).
+- Register map — **AUDITED against MCU+ SDK `adc/v2/cslr_adc.h` (2026-06); the
+  earlier offsets/fields here were wrong and broke the first driver.** Config
+  window offsets: `ADCCTL1 0x00`, `ADCCTL2 0x02`, `ADCINTFLG 0x06`,
+  `ADCINTFLGCLR 0x08`, `ADCINTSEL1N2 0x0E`, `ADCSOCFLG1 0x18`,
+  `ADCSOCFRC1 0x1A`, `ADCSOC0CTL 0x20` (32b, **stride 4** per SOC). Result
+  window: `ADCRESULT0` at result_base+`0x00`, 16b, **stride 2**, 12-bit
+  right-justified (mask `0x0FFF`).
+  - `ADCCTL1`: INTPULSEPOS=bit2 (1=end-of-conv), ADCPWDNZ=bit7 (power up),
+    ADCBSY=bit13. `ADCCTL2.PRESCALE`=[3:0] (6 = `ADC_CLK_DIV_4_0`).
+  - `ADCSOCxCTL` fields (these were the bug — NOT [3:0]/@8/@16):
+    **`ACQPS[8:0]`, `CHSEL[19:15]` (5-bit), `TRIGSEL[26:20]`** (0=SW only).
+  - `ADCINTSEL1N2`: **`INT1SEL[4:0]` = the SOC/EOC source, `INT1E`=bit5.** Must
+    be configured or `ADCINTFLG` bit0 never sets and every read times out.
+- Clock: ADC uses the CONTROLSS SYSCLK tap (already enabled in soc.c
+  am263p_enable_controlss_clock for ePWM; same path per TRM 7.5.2.3.1 "base ADC
+  clock is ... SYSCLK", prescale in ADCCTL2). No separate RCM gate found for
+  ADC in initial chase.
+- Reference: internal REFBUF via TOP_CTRL — **required, now in the driver init.**
+  TOP_CTRL base `0x50D80000` (KICK-locked, unlock `0x01234567/0x0FEDCBA8`):
+  write `0x7` to `ADC_REFBUF0_CTRL @0xC00` and OR the per-instance field into
+  `ADC_REF_COMP_CTRL @0xC08` (inst0=`0x7`, inst1/2=`<<4`, 3/4→REFBUF1 `<<8`,
+  5/6→REFBUF2 `<<12`). Mirrors SDK `SOC_enableAdcReference`. Also needs a
+  **≥500 µs settling delay after ADCPWDNZ** (SDK `adc.h`). Whether the absolute
+  VREF/full-scale is 3.3 V is still UNVERIFIED — `raw` (0..4095) is trustworthy,
+  the mV print is an approximation.
+- Interrupts: per-ADC 4x ADCINT (EOC/early) + 4x OSINT (PPB) + shared ADCEVTINT
+  (PPB limits/zero-cross). Routed via CONTROLSS_INTRXBAR0 (not direct VIM);
+  TRM §7.5.2.13 + 10.3/4. Polling path used first (no XBAR config in driver yet).
+- TRM primary: SPRUJ55 §4.1 (integration), §7.5.2 (full ADC, 511+), power-up
+  seq 7.5.2.17, timings 7.5.2.19. SDK examples (adc_soc_software etc) + v2/adc.c/h
+  for sequences (never guessed).
+- Driver status (2026-06): offsets/fields/INT-select/reference/settling-delay all
+  fixed per the audit above; `adc read <ch>` shell cmd in the Layer-2 app.
+  Conversions complete and are correct — the driver is proven.
+- **ADC reference vs pot-range design mismatch (verified from board+SoC docs):**
+  - **VREFHI ≈ 1.8 V** so ADC full scale = ~1.8 V. (Datasheet SPRSP81 §6.8.2.1:
+    VREFHI 1.71/1.8/1.89 V. ControlCARD external ref = REF3318A = 1.8 V.)
+  - **Dock pots swing 0–3.3 V** (10 kΩ across 3.3 V, SPRUJ73 §2.5.1) via an
+    OPA2837 buffer. So pot voltage above ~1.8 V **saturates at 4095** — the upper
+    ~45 % of pot travel rails by design. Turn the pot to its LOWER range to see
+    `raw` track 0..4095, then clamp.
+  - **ControlCARD SW9 (ADC VREF switch) must be SW9.1=Pin1-2, SW9.2=Pin4-5** =
+    "on-die LDO reference" for the SDK-style internal-reference path our driver
+    uses (SPRUJ86 Table 2-31 note). Wrong SW9 = external/floating VREFHI → rails.
+  - **Dock jumpers:** pot→op-amp = J18/J22 Pin2-3 (default); **op-amp→ADC pin =
+    J65/J66 Pin1-2 — these are easy to leave unpopulated, which floats the AIN
+    pin and also rails.** Direct (bypass op-amp) = J18/J22 Pin1-2.
+  - For a clean 0–3.3 V → 0–4095 sweep you'd need VREFHI=3.3 V (HSEC_VREF_3V3
+    path, external) instead of the 1.8 V on-die ref — a different board+driver
+    config (don't enable internal REFBUF then). UNVERIFIED/untried.
+
 ### Still to verify in the TRM (SPRUJ55) before broad BSP/devicetree work
 - GPIO signal-number → controller-instance mapping: GPIO0 `0x52000000` vs
   GPIO1 `0x52001000`. Low numbers (GPIO22, GPIO58) are GPIO0; the GPIO0/GPIO1
