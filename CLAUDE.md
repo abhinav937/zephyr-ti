@@ -38,8 +38,9 @@ Check there first. See `vendor-docs/README.md` for what's present and the
 - Workspace quirk: `.west/` lives at **`C:\`** root, so west/CMake can resolve
   `WEST_TOPDIR=C:\` and fail with "Could not find Zephyr package."
   `build.ps1` works around this by pinning `ZEPHYR_BASE=C:\zephyr-ti`.
-- Build: `.\build.ps1` (board `lp_am263p/am263p4/r5f0_0`, sample
-  `samples/hello_world`). Zephyr SDK 1.0.1 at `C:\Users\abhin\zephyr-sdk-1.0.1`.
+- Build: `.\build.ps1` (board `tmdscncd263p/am263p4/r5f0_0`, sample
+  `samples/hello_world`; `-Board`/`-Sample` override, `-Pristine` forces a clean
+  build). Zephyr SDK 1.0.1 at `C:\Users\abhin\zephyr-sdk-1.0.1`.
 - ELF: `build/zephyr/zephyr.elf`. It is a **RAM load** (TCM + OCRAM
   @0x70040000), loaded over JTAG via XDS110 — not flashed.
 - Debug: online CCS / CCS Cloud, XDS110 probe. Connect **Core_R5_0 only**.

@@ -1,0 +1,114 @@
+/*
+ * Copyright (c) 2026
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * TI TMDSCNCD263P AM263P ControlCARD, R5FSS0 Core 0.
+ *
+ * All pin/LED/clock facts below are verified on this ControlCARD (not carried
+ * over from the LaunchPad): UART0 console reaches the XDS110 COM port, and
+ * LD6/LD7 blink via the GPIO driver. See CLAUDE.md for the source citations.
+ */
+
+/dts-v1/;
+
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <ti/am263p4_r5f0_0.dtsi>
+
+/ {
+	model = "TI TMDSCNCD263P AM263P ControlCARD (R5FSS0 Core0)";
+	compatible = "ti,tmdscncd263p-r5f-cluster-0-core-0";
+
+	chosen {
+		zephyr,sram = &sram;
+		zephyr,sram1 = &atcm;
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+	};
+
+	aliases {
+		led0 = &led_ld6;
+		led1 = &led_ld7;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_ld6: led_0 {
+			gpios = <&gpio0 22 GPIO_ACTIVE_LOW>;
+			label = "LD6 (red)";
+		};
+
+		led_ld7: led_1 {
+			/* GPIO58 is in bank23 -> gpio1 pin (58 - 32) = 26. */
+			gpios = <&gpio1 26 GPIO_ACTIVE_LOW>;
+			label = "LD7 (green)";
+		};
+	};
+};
+
+/*
+ * UART0 -> XDS110 USB-UART console.
+ *
+ * Pad mux from datasheet SPRSP81 Table 5-1 (UART0 = mux mode 0 on both pads):
+ *   UART0_RXD  ball A7  PADCONFIG 0x5310006c  (input)
+ *   UART0_TXD  ball A6  PADCONFIG 0x53100070  (output)
+ * Pad value bits: [3:0]=muxmode, [5:4]=force-input, [7:6]=force-output,
+ * [8]=pull-disable. TX (0x100): mode0 + pull-disable; the UART subsystem
+ * drives the output buffer (proven by the LED case). RX (0x110): mode0 +
+ * force-input-enable + pull-disable.
+ */
+&pinctrl {
+	uart0_rx_default: uart0_rx_default {
+		pinmux = <0x5310006c 0x00000110>;
+	};
+
+	uart0_tx_default: uart0_tx_default {
+		pinmux = <0x53100070 0x00000100>;
+	};
+
+	/*
+	 * USER LED pads -> GPIO (mux mode 7), pull disabled. Value 0x107 =
+	 * mode7 | pull-disable[8]; force-out left disabled so the GPIO DIR
+	 * register drives the output. GPIO owner bits [17:16]=0 = R5SS0-core0.
+	 * (CLAUDE.md verified-facts ledger; datasheet SPRSP81 Table 5-1.)
+	 *   LD6/GPIO22 -> ball A8  LIN2_TXD  PADCONFIG 0x53100058
+	 *   LD7/GPIO58 -> EPWM7_B            PADCONFIG 0x531000e8
+	 */
+	led_ld6_default: led_ld6_default {
+		pinmux = <0x53100058 0x00000107>;
+	};
+
+	led_ld7_default: led_ld7_default {
+		pinmux = <0x531000e8 0x00000107>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_rx_default &uart0_tx_default>;
+	pinctrl-names = "default";
+};
+
+/*
+ * GPIO banks for the user LEDs. gpio0 = bank01 (signals 0..31, LD6/GPIO22),
+ * gpio1 = bank23 (signals 32..63, LD7/GPIO58). Each carries the pad-mux for
+ * its LED; the davinci driver applies pinctrl-0 at init.
+ */
+&gpio0 {
+	status = "okay";
+	pinctrl-0 = <&led_ld6_default>;
+	pinctrl-names = "default";
+};
+
+&gpio1 {
+	status = "okay";
+	pinctrl-0 = <&led_ld7_default>;
+	pinctrl-names = "default";
+};
+
+/* RTI0 — Zephyr system tick source. */
+&rti0 {
+	status = "okay";
+};

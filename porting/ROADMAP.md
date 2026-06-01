@@ -88,10 +88,11 @@ Status: `[x]` done · `[~]` in progress · `[ ]` not started
       the LED bring-up register pokes in `main.c` are now migrated to DT pinctrl
       (`led_ld6_default`/`led_ld7_default` on `&gpio0`/`&gpio1`), so no raw pad
       writes remain.
-- [~] **Phase 3 — real `tmdscncd263p` board + proven GPIO driver**: GPIO driver
-      proven — LEDs LD6/LD7 driven through the `ti,davinci-gpio` driver via DT
-      (verified on hardware). Remaining: split the ControlCARD board files out
-      from the LaunchPad `lp_am263p` files (own `boards/ti/tmdscncd263p`).
+- [x] **Phase 3 — real `tmdscncd263p` board + proven GPIO driver**: GPIO driver
+      proven (LD6/LD7 via `ti,davinci-gpio` + DT pinctrl), and the ControlCARD
+      now has its own `boards/ti/tmdscncd263p` split out from the LaunchPad
+      `lp_am263p` files. Verified on hardware: builds + boots + blinks on
+      `tmdscncd263p/am263p4/r5f0_0`.
 - [x] **Phase 4 — system timer verified**: RTI tick works; `k_msleep` and
       `k_uptime_get()` advance. Root cause of the earlier hang: `CPUC0=0`
       (divide-by-2³², ~21 s/tick) instead of `CPUC0=1` (divide-by-1, 200 MHz).
@@ -121,6 +122,18 @@ Phases 1–4 are Layer-1 port work; 5–7 build the Layer-2 platform.
 
 Reverse-chronological. One entry per commit: `### <date> — <commit subject>`,
 then bullets of what changed and the phase touched.
+
+### 2026-05-31 — feat(am263p): tmdscncd263p ControlCARD board; simpler build.ps1 (Phase 3 done)
+- Added `boards/ti/tmdscncd263p` (board.yml, Kconfig, `_r5f0_0` dts/yaml/defconfig,
+  support/openocd.cfg, fresh doc) split out from the LaunchPad `lp_am263p` files.
+  All pin/LED/UART/RTI facts in it are ControlCARD-verified on hardware. `lp_am263p`
+  is left as the separate (currently unvalidated) LaunchPad board.
+- `build.ps1`: retargeted default to `tmdscncd263p/am263p4/r5f0_0` and rewritten —
+  `-Board`/`-Sample` are parameters again; the homegrown "aggressive rebuild"
+  (delete .obj + touch soc.c/main.c + git-scan) is removed in favour of
+  `west build -p auto` (west does a pristine only when the build dir can't be
+  reused, e.g. a board switch). Kept the SDK/CMake auto-detection + ZEPHYR_BASE pin.
+- Verified on hardware: clean build + boot + LED blink on the new board.
 
 ### 2026-05-31 — feat(am263p): LEDs via ti,davinci-gpio driver + DT pinctrl (Phase 2 done, Phase 3 GPIO proven)
 - Correct GPIO model: per TRM SPRUJ55 §13.1.1 a single GPIO instance

@@ -1,0 +1,6 @@
+board:
+  name: tmdscncd263p
+  full_name: TI TMDSCNCD263P AM263P ControlCARD
+  vendor: ti
+  socs:
+  - name: am263p4

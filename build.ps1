@@ -1,303 +1,151 @@
 # build.ps1
 #
-# Simple one-command build for the AM263P Zephyr port (TMDSCNCD263P ControlCARD).
+# One-command Zephyr build for the AM263P port.
 #
-# For now this script is intentionally locked to the current development target:
-#   Board:  lp_am263p/am263p4/r5f0_0
-#   Sample: samples/hello_world
+# Defaults to the TMDSCNCD263P ControlCARD target, but board and sample are
+# parameters now (there is more than one board), so:
 #
-# Just run:
-#   .\build.ps1
-#   .\build.ps1 -Pristine
-#   .\build.ps1 -t menuconfig
+#   .\build.ps1                                  # default board + sample
+#   .\build.ps1 -Pristine                        # force a clean rebuild
+#   .\build.ps1 -Board lp_am263p/am263p4/r5f0_0  # build the LaunchPad board
+#   .\build.ps1 -Sample samples\synchronization
+#   .\build.ps1 -t menuconfig                    # pass extra args to west build
 #
-# Double-click build.bat for the simplest experience (no typing needed).
+# Incremental builds use `west build -p auto`: west itself does a pristine
+# rebuild only when the build dir can't be reused (e.g. you switched boards),
+# and a fast incremental otherwise. No manual object-file juggling needed.
 #
-# The script forces ZEPHYR_BASE because .west/ lives at the root of C:\ on this machine.
+# ZEPHYR_BASE is pinned because .west/ lives at the root of C:\ on this machine.
 
 [CmdletBinding()]
 param(
+    [string]$Board  = "tmdscncd263p/am263p4/r5f0_0",
+    [string]$Sample = "samples\hello_world",
+
+    # Force a full clean rebuild (west -p always). Otherwise -p auto is used.
     [switch]$Pristine,
+
     [switch]$Help,
 
-    # Any extra arguments (e.g. -t menuconfig) are passed through to west build
+    # Extra arguments passed straight through to `west build` (e.g. -t menuconfig).
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$WestArgs
 )
 
-# Currently locked to the AM263P development target.
-# This will be made configurable again later when we need multi-board support.
-$Board  = "lp_am263p/am263p4/r5f0_0"
-$Sample = "samples\hello_world"
-
 $ErrorActionPreference = "Stop"
+$ZephyrDir = "C:\zephyr-ti"
 
-# Print build start time as early as possible
-$scriptStartTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-Write-Host "==> Build script started at: $scriptStartTime" -ForegroundColor DarkGray
-
-# Unique Build ID that appears in every build (normal or pristine)
-$buildId = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-Write-Host "==> Build ID: $buildId" -ForegroundColor Yellow
-
-# ------------------------------------------------------------------
-# Help
-# ------------------------------------------------------------------
 if ($Help) {
     Write-Host @"
-AM263P Zephyr Build Script (locked to current target)
+AM263P Zephyr build script
 
 Usage:
-  .\build.ps1                 # Build hello_world for AM263P ControlCARD
-  .\build.ps1 -Pristine       # Full clean rebuild
-  .\build.ps1 -t menuconfig   # Pass extra arguments to west
+  .\build.ps1                                  Build the default board + sample
+  .\build.ps1 -Pristine                        Full clean rebuild (-p always)
+  .\build.ps1 -Board <board> -Sample <path>    Override board / sample
+  .\build.ps1 -t menuconfig                    Pass extra args to west build
 
-This script is currently hardcoded to:
-  Board:  lp_am263p/am263p4/r5f0_0
-  Sample: samples/hello_world
+Defaults:
+  Board  : tmdscncd263p/am263p4/r5f0_0
+  Sample : samples\hello_world
 
-It always sets ZEPHYR_BASE (required because .west/ lives at C:\ root on this machine).
+Sets ZEPHYR_BASE=$ZephyrDir (required because .west/ lives at the C:\ root).
 "@
     exit 0
 }
 
 # ------------------------------------------------------------------
-# Configuration
+# Environment
 # ------------------------------------------------------------------
-$ZephyrDir = "C:\zephyr-ti"
-
 Write-Host "==> Switching to $ZephyrDir ..." -ForegroundColor Cyan
 Set-Location $ZephyrDir
 
-# ------------------------------------------------------------------
-# Activate Python venv
-# ------------------------------------------------------------------
 $venvActivate = ".\.venv-zephyr\Scripts\Activate.ps1"
 if (-not (Test-Path $venvActivate)) {
     Write-Host "ERROR: Python venv not found at $ZephyrDir\.venv-zephyr" -ForegroundColor Red
-    Write-Host "Please create the venv first (python -m venv .venv-zephyr)." -ForegroundColor Yellow
+    Write-Host "Create it first: python -m venv .venv-zephyr" -ForegroundColor Yellow
     exit 1
 }
-
 Write-Host "==> Activating Python virtual environment..." -ForegroundColor Cyan
 . $venvActivate
 
 $env:ZEPHYR_TOOLCHAIN_VARIANT = "zephyr"
-
-# Critical workaround for this workspace layout
 $env:ZEPHYR_BASE = $ZephyrDir
 Write-Host "==> ZEPHYR_BASE pinned to $ZephyrDir (workaround for .west/ at C:\)" -ForegroundColor DarkGray
 
 # ------------------------------------------------------------------
-# Locate Zephyr SDK (smart detection)
+# Locate the Zephyr SDK toolchain
 # ------------------------------------------------------------------
 function Find-ZephyrSdk {
-    # 1. Explicit environment variable (highest priority)
     if ($env:ZEPHYR_SDK_INSTALL_DIR -and (Test-Path $env:ZEPHYR_SDK_INSTALL_DIR)) {
         return $env:ZEPHYR_SDK_INSTALL_DIR
     }
 
-    # 2. Look for newest zephyr-sdk-* under common locations
-    $candidates = @(
-        (Join-Path $HOME "zephyr-sdk-*"),
-        "C:\zephyr-sdk-*"
-    )
-
+    $candidates = @((Join-Path $HOME "zephyr-sdk-*"), "C:\zephyr-sdk-*")
     $found = Get-ChildItem -Path $candidates -Directory -ErrorAction SilentlyContinue |
-             Sort-Object Name -Descending |
-             Select-Object -First 1
+             Sort-Object Name -Descending | Select-Object -First 1
 
     if (-not $found) {
-        # Fallback: search under C:\Users for other user profiles (slower but reliable)
+        # Fallback: scan other user profiles.
         $found = Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue |
                  ForEach-Object { Get-ChildItem -Path (Join-Path $_.FullName "zephyr-sdk-*") -Directory -ErrorAction SilentlyContinue } |
-                 Sort-Object Name -Descending |
-                 Select-Object -First 1
+                 Sort-Object Name -Descending | Select-Object -First 1
     }
 
-    if ($found) {
-        return $found.FullName
-    }
-
-    # 3. Last resort: old hardcoded path (will warn)
-    $oldPath = "C:\Users\abhin\zephyr-sdk-1.0.1"
-    if (Test-Path $oldPath) {
-        Write-Host "WARNING: Using legacy hardcoded SDK path. Please set ZEPHYR_SDK_INSTALL_DIR instead." -ForegroundColor Yellow
-        return $oldPath
-    }
-
+    if ($found) { return $found.FullName }
     return $null
 }
 
 $sdkPath = Find-ZephyrSdk
-
 if (-not $sdkPath) {
-    Write-Host "ERROR: Could not find Zephyr SDK." -ForegroundColor Red
-    Write-Host "Set the environment variable ZEPHYR_SDK_INSTALL_DIR or install the SDK in a standard location." -ForegroundColor Yellow
+    Write-Host "ERROR: Could not find a Zephyr SDK." -ForegroundColor Red
+    Write-Host "Set ZEPHYR_SDK_INSTALL_DIR or install the SDK in a standard location." -ForegroundColor Yellow
     exit 1
 }
 
 $toolchainBin = Join-Path $sdkPath "gnu\arm-zephyr-eabi\bin"
 if (-not (Test-Path $toolchainBin)) {
-    Write-Host "ERROR: Toolchain bin directory not found at $toolchainBin" -ForegroundColor Red
+    Write-Host "ERROR: Toolchain bin not found at $toolchainBin" -ForegroundColor Red
     exit 1
 }
-
-# Set the official variable (best practice) and update PATH
 $env:ZEPHYR_SDK_INSTALL_DIR = $sdkPath
 $env:Path = "$toolchainBin;$env:Path"
-
 Write-Host "==> Using Zephyr SDK: $sdkPath" -ForegroundColor Green
 
 # ------------------------------------------------------------------
-# Ensure CMake is available
+# Ensure CMake is on PATH
 # ------------------------------------------------------------------
 function Find-CMake {
-    # 1. Already in PATH?
     $cmd = Get-Command cmake -ErrorAction SilentlyContinue
-    if ($cmd) {
-        return $cmd.Source
-    }
+    if ($cmd) { return $cmd.Source }
 
-    # 2. Common installation locations
-    $candidates = @(
+    foreach ($path in @(
         "C:\Program Files\CMake\bin\cmake.exe",
         "C:\Program Files (x86)\CMake\bin\cmake.exe",
-        "C:\ProgramData\chocolatey\bin\cmake.exe"
-    )
-
-    foreach ($path in $candidates) {
-        if (Test-Path $path) {
-            return $path
-        }
+        "C:\ProgramData\chocolatey\bin\cmake.exe")) {
+        if (Test-Path $path) { return $path }
     }
-
     return $null
 }
 
 $cmakePath = Find-CMake
-
-if ($cmakePath) {
-    $cmakeDir = Split-Path $cmakePath
-    if ($env:Path -notlike "*$cmakeDir*") {
-        $env:Path = "$cmakeDir;$env:Path"
-    }
-    Write-Host "==> Using CMake: $cmakePath" -ForegroundColor Green
-} else {
-    Write-Host "ERROR: CMake not found." -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Common fixes:" -ForegroundColor Yellow
-    Write-Host "  - Install CMake from https://cmake.org/download/" -ForegroundColor Yellow
-    Write-Host "  - Or via Chocolatey: choco install cmake" -ForegroundColor Yellow
-    Write-Host "  - Make sure CMake's bin folder is in your PATH" -ForegroundColor Yellow
-    Write-Host ""
+if (-not $cmakePath) {
+    Write-Host "ERROR: CMake not found. Install it (https://cmake.org/download/ or 'choco install cmake')." -ForegroundColor Red
     exit 1
 }
+$cmakeDir = Split-Path $cmakePath
+if ($env:Path -notlike "*$cmakeDir*") { $env:Path = "$cmakeDir;$env:Path" }
+Write-Host "==> Using CMake: $cmakePath" -ForegroundColor Green
 
 # ------------------------------------------------------------------
 # Build
 # ------------------------------------------------------------------
-$buildArgs = @("-b", $Board, $Sample)
+$pristineMode = if ($Pristine) { "always" } else { "auto" }
+$buildArgs = @("-b", $Board, $Sample, "-p", $pristineMode)
+if ($WestArgs) { $buildArgs += $WestArgs }
 
-if ($Pristine) {
-    $buildArgs += "-p", "always"
-    Write-Host "==> Building AM263P target (PRISTINE) ..." -ForegroundColor Cyan
-} else {
-    Write-Host "==> Building AM263P target (incremental) ..." -ForegroundColor Cyan
+Write-Host "==> west build -b $Board $Sample -p $pristineMode $WestArgs" -ForegroundColor Cyan
 
-    # ------------------------------------------------------------------
-    # Very aggressive rebuild for AM263P bring-up.
-    # CMake's dependency tracking has been extremely unreliable on this machine
-    # for soc/ and app files. To avoid constantly needing -Pristine, we now:
-    #   - Always delete the object files for the files the user is actively editing
-    #     on AM263P (even if git doesn't see them as changed).
-    # This guarantees recompilation without a full pristine build.
-    # ------------------------------------------------------------------
-    if ($Board -like "*am263p*") {
-        Write-Host "==> AM263P aggressive rebuild mode enabled" -ForegroundColor DarkGray
-
-        $filesToNuke = @()
-
-        # Core SoC file - this has been the #1 source of stale builds
-        if (Test-Path "soc/ti/am263x/soc.c") {
-            $filesToNuke += "soc/ti/am263x/soc.c"
-        }
-
-        # App debug code
-        if ($Sample -like "*hello_world*") {
-            if (Test-Path "samples/hello_world/src/main.c") {
-                $filesToNuke += "samples/hello_world/src/main.c"
-            }
-        }
-
-        foreach ($file in $filesToNuke) {
-            if (Test-Path $file) {
-                # Touch it
-                (Get-Item $file).LastWriteTime = Get-Date
-
-                # Delete the object file - this is the reliable hammer
-                $relativePath = $file -replace '/', '\'
-                $objFile = Join-Path "build\zephyr\CMakeFiles" "zephyr.dir\$relativePath.obj"
-
-                if (-not (Test-Path $objFile)) {
-                    $objFile = Join-Path "build\zephyr\CMakeFiles" "app.dir\$relativePath.obj"
-                }
-
-                if (Test-Path $objFile) {
-                    Remove-Item $objFile -Force -ErrorAction SilentlyContinue
-                    Write-Host "    -> Deleted object to force rebuild: $objFile" -ForegroundColor DarkGray
-                }
-
-                Write-Host "    -> Touched $file (AM263P force-rebuild rule)" -ForegroundColor DarkGray
-            }
-        }
-
-        if ($filesToNuke.Count -gt 0) {
-            Write-Host "==> Forced rebuild of key AM263P files (no -Pristine needed)" -ForegroundColor DarkGray
-        }
-    }
-
-    # Still run git detection for any other files the user might have touched
-    if (Test-Path ".git") {
-        Write-Host "==> Detecting other changed source files via git..." -ForegroundColor DarkGray
-
-        $changedFiles = @(
-            git diff --name-only
-            git diff --name-only --cached
-            git ls-files --others --exclude-standard
-        ) | Where-Object { $_ } | Sort-Object -Unique
-
-        $sourceExtensions = @('.c', '.cpp', '.cxx', '.cc', '.S', '.s', '.h', '.hpp', '.hxx')
-
-        $sourcesToTouch = $changedFiles | Where-Object {
-            $ext = [System.IO.Path]::GetExtension($_).ToLower()
-            $sourceExtensions -contains $ext
-        }
-
-        if ($sourcesToTouch.Count -gt 0) {
-            Write-Host "==> Git detected $($sourcesToTouch.Count) other changed source file(s):" -ForegroundColor DarkGray
-            foreach ($file in $sourcesToTouch) {
-                if (Test-Path $file) {
-                    (Get-Item $file).LastWriteTime = Get-Date
-                    Write-Host "    -> Touched $file" -ForegroundColor DarkGray
-                }
-            }
-        } else {
-            Write-Host "==> No other source file changes detected by git" -ForegroundColor DarkGray
-        }
-    } else {
-        Write-Host "==> Not a git repository - skipping git change detection" -ForegroundColor Yellow
-    }
-}
-
-Write-Host "==> Build started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  (ID: $buildId)" -ForegroundColor DarkGray
-
-if ($WestArgs) {
-    Write-Host "==> Passing extra arguments to west: $WestArgs" -ForegroundColor DarkGray
-    $buildArgs += $WestArgs
-}
-
-# Use 'west' from the activated venv (more robust than hardcoding west.exe path)
 west build @buildArgs
 
 if ($LASTEXITCODE -ne 0) {
@@ -306,22 +154,17 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # ------------------------------------------------------------------
-# Success + Project-specific next steps
+# Success
 # ------------------------------------------------------------------
 $elfPath = Join-Path $ZephyrDir "build\zephyr\zephyr.elf"
-
 Write-Host ""
-Write-Host "==> Build finished successfully at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  (Build ID: $buildId)" -ForegroundColor Green
-Write-Host "ELF: $elfPath" -ForegroundColor Yellow
-
+Write-Host "==> Build OK: $elfPath" -ForegroundColor Green
 Write-Host ""
-Write-Host "==> Next steps for TMDSCNCD263P ControlCARD (AM263P):" -ForegroundColor Cyan
-Write-Host "   1. In CCS, connect ONLY to Core_R5_0" -ForegroundColor White
+Write-Host "Load over XDS110 (TI CCS):" -ForegroundColor Cyan
+Write-Host "   1. Connect ONLY Core_R5_0" -ForegroundColor White
 Write-Host "   2. Load Program -> $elfPath" -ForegroundColor White
-Write-Host "   3. Run -> Restart -> Resume" -ForegroundColor White
+Write-Host "   3. Restart -> Resume" -ForegroundColor White
 Write-Host "   4. Console: XDS110 user-UART COM port @ 115200 8N1" -ForegroundColor White
-Write-Host ""
-Write-Host "   (The -215 semaphore timeout usually means a stale DSLite is holding the probe.)" -ForegroundColor DarkGray
-Write-Host ""
+Write-Host "   (-215 semaphore timeout = stale DSLite holding the probe; see debug/ccs/)" -ForegroundColor DarkGray
 
 exit 0
