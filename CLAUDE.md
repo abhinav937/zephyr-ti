@@ -62,12 +62,109 @@ Check there first. See `vendor-docs/README.md` for what's present and the
   force-out-disable; GPIO-output value = `0x107` (mode7, pull off, no force,
   so the GPIO DIR reg controls output). (datasheet SPRSP81 Table 5-1 +
   MCU+ SDK `pinmux.h`.)
-- ControlCARD user LEDs, both active-LOW (SPRUJ86 Table 2-12 + datasheet
-  SPRSP81 Table 5-1, datasheet authoritative):
+- **ControlCARD user LEDs are active-HIGH (corrected 2026-06 from hardware).**
+  The pin drives the LED on when HIGH. This overturns the earlier "active-LOW"
+  reading of SPRUJ86 Table 2-12 / datasheet — that was never confirmed by eye
+  (blink alternation looks the same either polarity). Hardware proof: LD7 via
+  ePWM is brightness-correct only with `PWM_POLARITY_NORMAL` (pin-high = bright),
+  and LD6/LD7 blinked *in sync* while LD6 was declared `GPIO_ACTIVE_LOW` —
+  flipping LD6 to `GPIO_ACTIVE_HIGH` made them alternate as intended. DT now
+  uses `GPIO_ACTIVE_HIGH` (LD6) / `PWM_POLARITY_NORMAL` (LD7).
+- LED pad/signal locations (SPRUJ86 Table 2-12 + datasheet SPRSP81 Table 5-1;
+  pad/mux still authoritative, only the active-level was wrong):
   - **USER_LED1 / LD7 = GPIO58**, pad EPWM7_B, CFG reg `0x531000E8`, mode 7.
   - **USER_LED0 / LD6 = GPIO22**, pad LIN2_TXD (ball A8), CFG reg `0x53100058`,
     mode 7. (SPRUJ86 Table 2-12 mislabels this pad "EPWM7_B" — a typo.)
   - Datasheet adjacency check: LIN2_RXD (B8, `0x53100054`) mode 7 = GPIO21.
+
+### Verified clock / RTI facts (from GEL + TRM chase, 2026-06)
+- Official CCS GELs (from `C:\ti\ccs2051\ccs\ccs_base\emulation\gel\AM263Px\`):
+  - `AM263Px.gel` `OnTargetConnect()` calls `Configure_Plls_R5F_400_SYS_200_Clocks()` then `Configure_All_Peripheral_Clks()`.
+  - `AM263Px_PLL\AM263Px_PLL.gel`: `Program_Core_PLL()` (HSDIV0=0x4 → 400 MHz comment from 2 GHz VCO; HSDIV1=0x3 → 500 MHz), `Program_SYS_CLK_DIVBY2()` writes `MSS_TOP_RCM_SYS_CLK_DIV_VAL = 0x111` ("/2"), `Program_R5F_SYS_CLK_SRC()` writes 0x222 (selects DPLL_CORE_HSDIV0_CLKOUT0) and prints "R5F=400MHz and SYS_CLK=200MHz".
+  - `AM263Px_PLL\AM263Px_Periheral_Clocks.gel` `Program_RTI0_Clocks()` (and RTI1-3/WDT equivalents): exactly
+    `Write_MMR(MSS_RCM_RTI0_CLK_SRC_SEL, 0x222); Write_MMR(MSS_RCM_RTI0_CLK_DIV_VAL, 0x000);` then polls STATUS==0x4 and prints "RTI0 Clock Enabled (200MHz)".
+  - Matches what `soc/ti/am263x/soc.c:am263p_enable_rti_clock()` does (for GEL-less/SBL boots).
+- TRM SPRUJ55 (primary):
+  - §6.4.8.2.1 "RTI CLOCK (FREQ = 200MHz)": explicitly documents `MSS_RCM.RTIx_CLK_DIV_VAL.CLKDIV = 0x000` + `RTIx_CLK_SRC_SEL.CLKSRCSEL = 0x222` "to select SYS_CLK as its source".
+  - Table 4-56 (RTI Clocks, §4.21): **RTI0_FCLK (RTI_CLK)** — the clock that feeds the FRC0/UC0 counters — can be sourced from SYS_CLK (PLL_CORE HSDIV0_CLKOUT0 @ 200 MHz intended) among other options (default often XTAL 25 MHz or EXT_REFCLK 100 MHz). Separate **RTI0_ICLK (VBUSP interface @ 200 MHz)** from the same SYS_CLK tap.
+  - 0x222 is the standard redundant GCM select encoding for the "SYS_CLK" input across TOP_RCM and MSS_RCM muxes.
+- Observed on TMDSCNCD263P ControlCARD (GEL run + our identical re-init): FRC0 advances at **100 MHz** effective (k_uptime_get vs stopwatch). UART console clean. DT already records GEL-measured 160 MHz UART clock on this board.
+- Result: documented 200 MHz "SYS_CLK → RTI via 0x222/DIV=0" path is active and matches GEL/TRM, but the effective FCLK rate to the timer counters is 100 MHz on this board/setup. The SYS_CLK tap seen by the MSS_RCM RTI mux (or downstream FCLK distribution) delivers half the rate that the TOP_RCM R5/SYS tree and GEL "200 MHz" labels assume. (FCLK vs ICLK distinction in Table 4-56 allows the counters to see 100 MHz while other logic sees the full rate.)
+- Therefore `CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC = 100000000` (set in Phase 4) is the correct value for wall-clock time on this ControlCARD. No change to the 100 MHz setting required.
+
+### Verified ePWM facts (from MCU+ SDK CSL + SPRSP81/SPRUJ55, 2026-06)
+- **This is "etpwm" type-5, NOT legacy C2000 type-0.** TRM SPRUJ55 §7.5.6:
+  "applicable for ePWM type 5". The register map differs from the classic
+  type-0 offsets — anything using `0x0A/0x0E/0x16` is wrong on this SoC.
+- ePWM register offsets (MCU+ SDK `drivers/epwm/v1/cslr_etpwm.h`):
+  `TBCTL 0x00` (16b), `TBCTR 0x08` (16b), `AQCTLA 0x80` (16b),
+  `AQCTLB 0x84` (16b), `TBPRD 0xC6` (16b), `CMPA 0xD4` (**32b**),
+  `CMPB 0xD8` (**32b**). CMPA/CMPB layout: `[31:16]=CMPx` (integer compare),
+  `[15:0]=CMPxHR` (HRPWM fraction) — write duty as `value << 16`.
+- AQ action encoding (TRM §7.5.6.6 + cslr_etpwm.h field shifts): per field
+  `0=disable, 1=clear(low), 2=set(high), 3=toggle`. Fields: `ZRO[1:0]`,
+  `PRD[3:2]`, `CAU[5:4]`, `CBU[9:8]`. Use the well-behaved single-edge config
+  **ZRO=set + CAU/CBU=clear for BOTH polarities** (AQCTLx = 0x12 for chan A,
+  0x102 for chan B). Implement inverted polarity by complementing the compare
+  (`CMP = period − pulse`), **not** by swapping to ZRO=clear. Reason: ZRO=clear
+  with CMP=0 leaves the pin stuck low (active-LOW LED = permanently ON — the
+  observed LD7 bug). With ZRO=set: CMP=0 → 0% high, CMP>TBPRD → 100% high, both
+  clean.
+- Up-count period: `T_pwm = (TBPRD+1) × TBCLK` (TRM §7.5.6.4.3) → program
+  `TBPRD = period_cycles − 1`. TBPRD is 16-bit (period ≤ 0x10000 cycles).
+- **ePWM needs TWO clock enables; both are gated after a GEL-less boot or a
+  CCS "Restart". The GEL does both; our code must too.**
+  1. **CONTROLSS subsystem source clock** (feeds every ePWM/eCAP counter) —
+     in **MSS_RCM** (`0x53208000`, KICK-locked with `0x68EF3490/0xD172BC5A`):
+     `CONTROLSS_PLL_CLK_DIV_VAL @0x260 = 0x000`,
+     `..._CLK_SRC_SEL @0x160 = 0x222` (DPLL_CORE_HSDIV0_CLKOUT2),
+     `..._CLK_GATE @0x360 = 0x000` (ungate; `0x7` = gated), poll
+     `..._CLK_STATUS @0x460` low byte == `0x4` (CLKINUSE). Done in
+     `soc.c:am263p_enable_controlss_clock()`. Mirrors GEL
+     `Program_CONTROLSS_Clocks()` + SDK `soc_rcm.c`
+     (`SOC_RcmPeripheralId_CONTROLSS_PLL`). **Without this the time-base
+     counter is frozen → with inverted polarity the LED sits ON permanently.**
+  2. **Per-instance time-base sync** — `CONTROLSS_CTRL.EPWM_CLKSYNC`
+     (base `0x502F0000`, offset `0x10`, **one bit per instance**, EPWM7 = bit 7).
+     This partition is KICK-locked with the *other* key pair: unlock
+     `LOCK0_KICK0 @0x1008 = 0x01234567`, `LOCK0_KICK1 @0x100C = 0x0FEDCBA8`
+     (SDK `soc.h` `KICK*_UNLOCK_VAL`; same values the GEL uses), set the bit,
+     relock. Done in the PWM driver init. Mirrors SDK `SOC_setEpwmTbClk()`.
+     TRM §7.5.6.4.3.2 documents the set-0 → configure → set-1 sequence.
+  (CONTROLSS_CTRL @0x502F0000 is reachable: the R5 MPU maps a 2 GB "Device"
+  region at 0x0, see `arm_mpu_regions.c`.)
+- EPWM instance bases: `EPWM0 = 0x50000000`, stride `0x1000`
+  (`EPWM7 = 0x50007000`). Instance index = `(base − 0x50000000) / 0x1000`.
+- **LED pad routing (SPRSP81 Table 5-1, authoritative):**
+  - **LD7 (pad 0x531000e8)**: `EPWM7_B` = **mux mode 0** (also GPIO58=mode7,
+    EPWM5_B=mode10). Pad value for PWM output = `0x100` (func_sel 0 +
+    pull-disable[8]). So LD7 CAN do hardware PWM = EPWM7 channel B (channel 1).
+  - **LD6 (pad 0x53100058, LIN2_TXD ball A8)**: mux options are ONLY
+    LIN2_TXD(0)/UART2_TXD(1)/SPI2_D1(2)/GPIO22(7) — **no ePWM at all.** LD6 is
+    GPIO-only; it physically cannot be brightness-controlled.
+- **LD7 ePWM polarity = NORMAL (measured).** Driven via EPWM7_B, LD7 is
+  brightness-proportional with `PWM_POLARITY_NORMAL` (CMP=pulse: 100% = full on,
+  0% = off, mid = dim). So this pin behaves **active-HIGH under ePWM**, even
+  though LD6/LD7 are active-LOW as GPIO. Confirmed by a `blink brightness` sweep
+  + `blink pwmdump` on hardware (the inverted flag gave reversed brightness and
+  lit LD7 during its off-slot). Don't "correct" this to INVERTED from the GPIO
+  active-LOW fact — the ePWM path measured opposite.
+- ePWM AQ coincidence at CMP=0: on this silicon, with ZRO=set + CBU=clear,
+  CMP=0 resolves to **0% high** (compare-up wins) and CMP>TBPRD to 100% high —
+  i.e. the well-behaved single-edge config, clean at both extremes.
+- **EPWMCLK = 200 MHz** (so TBCLK = 200 MHz with no time-base prescale).
+  Verified from TI sources (2026-06):
+  - CCS GEL `AM263Px_Periheral_Clocks.gel` `Program_CONTROLSS_Clocks()`:
+    `CONTROLSS_PLL_CLK_DIV_VAL=0x000`, `..._SRC_SEL=0x222`, polls STATUS==0x4,
+    prints "CONTROLSS Clock Enabled (**400MHz**)" — this is the ePWM subsystem
+    ("SYSCLK" in TRM Fig 7-179) clock.
+  - MCU+ SDK `drivers/epwm/v1/etpwm.h`: "EPWMCLK is a scaled version of SYSCLK.
+    **At reset EPWMCLK is half SYSCLK.**" → 400 / 2 = 200 MHz.
+  - SDK example `epwm_xcmp_dma.c`: `EPWM_TBCLK_FREQUENCY_IN_HZ = 200000000U`.
+  Caveat: the RTI "200 MHz" tap measured 100 MHz on this board (see RTI notes);
+  no equivalent measurement exists for the separate CONTROLSS_PLL yet. Duty
+  *ratio* is clock-independent, so brightness is correct regardless; only the
+  carrier frequency would shift if a measurement later shows a /2 here too.
 
 ### Still to verify in the TRM (SPRUJ55) before broad BSP/devicetree work
 - GPIO signal-number → controller-instance mapping: GPIO0 `0x52000000` vs

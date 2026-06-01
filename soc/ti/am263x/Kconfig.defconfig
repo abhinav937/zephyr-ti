@@ -12,12 +12,21 @@ config NUM_IRQS
 	default 256 if SOC_SERIES_AM263X_R5
 
 config SYS_CLOCK_HW_CYCLES_PER_SEC
-	# RTI counter (FRC0) input clock = 100 MHz on the TMDSCNCD263P ControlCARD.
-	# Measured directly: over a 10 s stopwatch interval k_uptime_get() advanced
-	# ~5.14 s, i.e. the counter runs at half the previously assumed 200 MHz. The
-	# UART console is not garbled, so this is the RTI source clock specifically
-	# (not a global 2x error). UNVERIFIED why it is /2 — confirm the MSS_RCM RTI
-	# clock mux / divider vs SYS_CLK in TRM SPRUJ55 and the GEL.
+	# RTI counter (FRC0) input clock (FCLK) = 100 MHz on the TMDSCNCD263P ControlCARD.
+	# Measured directly (wall-clock stopwatch vs k_uptime_get()): the FRC runs at
+	# half the 200 MHz the GEL and TRM describe for the documented path.
+	#
+	# GEL (C:\ti\...\AM263Px_PLL\AM263Px_Periheral_Clocks.gel:Program_RTI0_Clocks):
+	#   MSS_RCM_RTI0_CLK_SRC_SEL = 0x222; _DIV_VAL = 0x000; prints "RTI0 Clock Enabled (200MHz)".
+	#   Top-level GEL forces 400 MHz R5 / 200 MHz SYS_CLK (TOP_RCM 0x222 + DIVBY2 0x111).
+	# TRM SPRUJ55 §6.4.8.2.1: 0x222 "selects SYS_CLK" for RTI FCLK (labeled FREQ=200 MHz),
+	#   DIV=0x000; Table 4-56 shows FCLK (to counters) selectable from SYS_CLK 200 MHz
+	#   (vs separate ICLK 200 MHz and other sources like XTAL 25 MHz / EXT_REFCLK 100 MHz).
+	# Our soc.c:am263p_enable_rti_clock() does the identical writes (for GEL-less boots).
+	# Result: the documented 200 MHz path is active, but effective FCLK to FRC0 is 100 MHz
+	# on this board (SYS_CLK tap seen by MSS_RCM RTI mux or downstream FCLK path is half).
+	# 100 MHz value is required for wall time; see CLAUDE.md "Verified clock / RTI facts"
+	# and ROADMAP.md 2026-06-02 changelog entry for full citations + measurement data.
 	default 100000000 if SOC_SERIES_AM263X_R5
 
 if SERIAL

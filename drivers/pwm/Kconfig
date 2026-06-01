@@ -26,6 +26,14 @@ config PWM_SHELL
 	help
 	  Enable the PWM related shell commands.
 
+config PWM_TI_AM263X
+	bool "TI AM263x ePWM driver"
+	depends on DT_HAS_TI_AM263X_EPWM_ENABLED
+	help
+	  Enable driver for TI AM263x / AM263Px ePWM (Enhanced Pulse Width Modulator) modules.
+	  Sufficient for basic duty cycle control (e.g. LED brightness).
+	  Full features (deadband, trip, etc.) can be added later.
+
 config PWM_CAPTURE
 	bool "Provide API for PWM capture"
 	help

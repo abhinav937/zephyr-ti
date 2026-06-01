@@ -20,7 +20,7 @@
 [CmdletBinding()]
 param(
     [string]$Board  = "tmdscncd263p/am263p4/r5f0_0",
-    [string]$Sample = "samples\am263_app",
+    [string]$Sample = "samples\hello_world",
 
     # Force a full clean rebuild (west -p always). Otherwise -p auto is used.
     [switch]$Pristine,
@@ -47,7 +47,7 @@ Usage:
 
 Defaults:
   Board  : tmdscncd263p/am263p4/r5f0_0
-  Sample : samples\am263_app  (samples\hello_world is the minimal smoke test)
+  Sample : samples\hello_world  (in-tree smoke test; real apps live in C:\am263-layer2)
 
 Sets ZEPHYR_BASE=$ZephyrDir (required because .west/ lives at the C:\ root).
 "@

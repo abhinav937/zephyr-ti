@@ -13,6 +13,7 @@
 /dts-v1/;
 
 #include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
 #include <ti/am263p4_r5f0_0.dtsi>
 
 / {
@@ -28,21 +29,40 @@
 
 	aliases {
 		led0 = &led_ld6;
-		led1 = &led_ld7;
+		/* LD7 is driven by ePWM (see &led_ld7_pwm), not GPIO. */
 	};
 
 	leds {
 		compatible = "gpio-leds";
 
 		led_ld6: led_0 {
-			gpios = <&gpio0 22 GPIO_ACTIVE_LOW>;
+			/* Active-HIGH: measured on hardware (the LEDs light when the
+			 * pin is HIGH, contradicting the SPRUJ86/datasheet "active-LOW"
+			 * note — confirmed by LD7's ePWM polarity + LD6/LD7 blinking in
+			 * sync when LD6 was declared active-LOW). See CLAUDE.md. */
+			gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;
 			label = "LD6 (red)";
 		};
+	};
 
-		led_ld7: led_1 {
-			/* GPIO58 is in bank23 -> gpio1 pin (58 - 32) = 26. */
-			gpios = <&gpio1 26 GPIO_ACTIVE_LOW>;
-			label = "LD7 (green)";
+	/*
+	 * Only LD7 supports hardware PWM. Its pad (EPWM7_B, 0x531000e8) routes
+	 * EPWM7_B at mux mode 0 (datasheet SPRSP81 Table 5-1). LD6's pad
+	 * (LIN2_TXD, 0x53100058) has NO ePWM mux option at all, so LD6 is
+	 * GPIO-only — there is no led_ld6_pwm.
+	 *
+	 * channel 1 = EPWMxB. PWM_POLARITY_NORMAL: measured on hardware, LD7 on
+	 * the EPWM7_B pin is brightness-proportional with normal polarity (duty%
+	 * = LED-on time, CMP=pulse; 100% = full on, 0% = off). I.e. this pin
+	 * behaves active-HIGH under ePWM, unlike LD6 as active-LOW GPIO — verified
+	 * by the blink pwmdump/brightness sweep, see CLAUDE.md ePWM ledger.
+	 * 250 us = 4 kHz carrier (flicker-free; 250 us x 200 MHz = 50000 < 65535).
+	 */
+	pwmleds {
+		compatible = "pwm-leds";
+		led_ld7_pwm: pwm_led_0 {
+			pwms = <&epwm7 1 PWM_USEC(250) PWM_POLARITY_NORMAL>;
+			label = "LD7 (PWM brightness)";
 		};
 	};
 };
@@ -73,14 +93,23 @@
 	 * register drives the output. GPIO owner bits [17:16]=0 = R5SS0-core0.
 	 * (CLAUDE.md verified-facts ledger; datasheet SPRSP81 Table 5-1.)
 	 *   LD6/GPIO22 -> ball A8  LIN2_TXD  PADCONFIG 0x53100058
-	 *   LD7/GPIO58 -> EPWM7_B            PADCONFIG 0x531000e8
+	 * (LD7's pad 0x531000e8 is muxed as EPWM7_B instead — see below.)
 	 */
 	led_ld6_default: led_ld6_default {
 		pinmux = <0x53100058 0x00000107>;
 	};
 
-	led_ld7_default: led_ld7_default {
-		pinmux = <0x531000e8 0x00000107>;
+	/*
+	 * LD7 pad as EPWM7_B output. Datasheet SPRSP81 Table 5-1: ball F1
+	 * (EPWM7_B_CFG_REG 0x531000e8) selects EPWM7_B at mux mode 0. Value
+	 * 0x100 = func_sel 0 | pull-disable[8] (Table 6-14 pad fields); the
+	 * ePWM drives the output enable, so no force-out bits.
+	 *
+	 * (There is intentionally no LD6 ePWM entry: pad LIN2_TXD 0x53100058
+	 * has no ePWM mux option — only LIN2_TXD/UART2_TXD/SPI2_D1/GPIO22.)
+	 */
+	led_ld7_pwm_default: led_ld7_pwm_default {
+		pinmux = <0x531000e8 0x00000100>;
 	};
 };
 
@@ -92,9 +121,9 @@
 };
 
 /*
- * GPIO banks for the user LEDs. gpio0 = bank01 (signals 0..31, LD6/GPIO22),
- * gpio1 = bank23 (signals 32..63, LD7/GPIO58). Each carries the pad-mux for
- * its LED; the davinci driver applies pinctrl-0 at init.
+ * gpio0 = bank01 (signals 0..31) drives LD6/GPIO22. gpio1 (bank23, signals
+ * 32..63) is left disabled: its only board consumer was LD7/GPIO58, which is
+ * now owned by ePWM (EPWM7_B) for brightness control.
  */
 &gpio0 {
 	status = "okay";
@@ -102,9 +131,14 @@
 	pinctrl-names = "default";
 };
 
-&gpio1 {
+/*
+ * EPWM7 drives LD7 (EPWM7_B) for hardware brightness. EPWM0 is intentionally
+ * NOT enabled for LD6 — LD6's pad has no ePWM mux option (SPRSP81 Table 5-1),
+ * so LD6 stays GPIO-only.
+ */
+&epwm7 {
 	status = "okay";
-	pinctrl-0 = <&led_ld7_default>;
+	pinctrl-0 = <&led_ld7_pwm_default>;
 	pinctrl-names = "default";
 };
 

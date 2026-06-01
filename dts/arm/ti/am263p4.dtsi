@@ -140,9 +140,28 @@
 		 * writes val to the absolute reg. The controller needs no addressing
 		 * of its own, so it has no #address-cells.
 		 */
-		pinctrl: pinctrl@53100000 {
-			compatible = "ti,am263x-pinctrl";
-			reg = <0x53100000 0x4000>;
-		};
-	};
+pinctrl: pinctrl@53100000 {
+	compatible = "ti,am263x-pinctrl";
+	reg = <0x53100000 0x4000>;
+};
+
+/* ePWM controller instances (used for LED brightness via PWM driver).
+ * Real bases from the user's MCU+ SDK (cslr_soc_baseaddress.h):
+ *   CSL_CONTROLSS_G0_EPWM0_U_BASE = 0x50000000
+ *   CSL_CONTROLSS_G0_EPWM7_U_BASE = 0x50007000
+ */
+epwm0: epwm@50000000 {
+	compatible = "ti,am263x-epwm";
+	reg = <0x50000000 0x1000>;
+	#pwm-cells = <3>;
+	status = "disabled";
+};
+
+epwm7: epwm@50007000 {
+	compatible = "ti,am263x-epwm";
+	reg = <0x50007000 0x1000>;
+	#pwm-cells = <3>;
+	status = "disabled";
+};
+};
 };

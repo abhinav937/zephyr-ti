@@ -1,0 +1,22 @@
+description: TI AM263x / AM263Px ePWM (Enhanced PWM) controller
+
+compatible: "ti,am263x-epwm"
+
+include:
+  - name: pwm-controller.yaml
+  - name: pinctrl-device.yaml
+
+properties:
+  reg:
+    required: true
+    type: array
+    description: |
+      MMIO register space.
+
+  "#pwm-cells":
+    const: 3
+
+pwm-cells:
+  - channel
+  - period
+  - flags
